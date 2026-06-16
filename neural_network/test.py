@@ -25,12 +25,16 @@ CLASS_NAMES = {
 
 def load_model(path: str, device: torch.device) -> torch.nn.Module:
     """Load a model checkpoint (supports raw state_dict or dict with 'model_state')."""
-    model = ecg_classifier(num_classi=4)
+    model = ecg_classifier(num_classi=4, in_channels=2)
     ckpt = torch.load(path, map_location=device)
-    if isinstance(ckpt, dict) and "model_state" in ckpt:
-        model.load_state_dict(ckpt["model_state"])
-    else:
-        model.load_state_dict(ckpt)
+    state_dict = ckpt["model_state"] if isinstance(ckpt, dict) and "model_state" in ckpt else ckpt
+    try:
+        model.load_state_dict(state_dict)
+    except Exception as exc:
+        raise RuntimeError(
+            "Checkpoint incompatibile con la rete a due derivazioni. "
+            "Riesegui l'allenamento per generare un modello aggiornato."
+        ) from exc
     return model.to(device)
 
 
@@ -40,6 +44,8 @@ def pad_or_trim(sig: np.ndarray, target: int) -> np.ndarray:
     If the signal is shorter, pads with zeros equally on both sides.
     If longer, extracts a centered window of length `target`.
     """
+    if sig.ndim == 2:
+        return np.stack([pad_or_trim(channel, target) for channel in sig], axis=0)
     L = len(sig)
     if L == target:
         return sig
@@ -87,7 +93,13 @@ def evaluate(model: torch.nn.Module, X: np.ndarray, batch_size: int = 32) -> Tup
     """Run batched inference and return (preds, probs)."""
     device = next(model.parameters()).device
     model.eval()
-    X_t = torch.tensor(X, dtype=torch.float32).unsqueeze(1)  # (N,1,L)
+    X_t = torch.tensor(X, dtype=torch.float32)
+    if X_t.ndim == 2:
+        X_t = X_t.unsqueeze(1)
+    elif X_t.ndim != 3:
+        raise ValueError(f"Input non supportato: shape={tuple(X_t.shape)}")
+    if X_t.size(1) != 2:
+        raise ValueError(f"La rete si aspetta 2 derivazioni, ma l'input ne contiene {X_t.size(1)}")
     N = X_t.size(0)
     preds = []
     probs = []
@@ -147,7 +159,7 @@ def print_summary(labels: List[int], preds: List[int], probs: List[List[float]],
             shown += 1
 
 
-def test_random_segments(num_samples: int = 100, target_length: int = 513, batch_size: int = 32, seed=None):
+def test_random_segments(num_samples: int = 100, target_length: int = 360, batch_size: int = 32, seed=None):
     """Main: sample random rows, run inference and print metrics."""
     csv_file = "data_prep/dataset/metadata.csv"
     base_dir = "data_prep/dataset"
@@ -164,7 +176,11 @@ def test_random_segments(num_samples: int = 100, target_length: int = 513, batch
         print("Nessun segmento valido trovato tra le righe selezionate.")
         return
 
-    model = load_model(model_path, device)
+    try:
+        model = load_model(model_path, device)
+    except RuntimeError as exc:
+        print(exc)
+        return
     preds, probs = evaluate(model, X, batch_size=batch_size)
     print_summary(labels, preds, probs, paths)
 
@@ -195,7 +211,7 @@ def test_last_patient():
         if not p.exists():
             continue
         sig = np.load(p)
-        sig = pad_or_trim(sig, 513)
+        sig = pad_or_trim(sig, 360)
         inputs.append(sig)
         labels.append(int(row["label"]))
         paths.append(rel)
@@ -205,7 +221,11 @@ def test_last_patient():
         return
 
     X = np.stack(inputs)
-    model = load_model(model_path, device)
+    try:
+        model = load_model(model_path, device)
+    except RuntimeError as exc:
+        print(exc)
+        return
     preds, probs = evaluate(model, X, batch_size=32)
     print_summary(labels, preds, probs, paths)
 

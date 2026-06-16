@@ -2,7 +2,7 @@ import torch.nn as nn
 
 
 class ecg_classifier(nn.Module):
-    """CNN pensata per finestre di singolo battito (input corti).
+    """CNN pensata per finestre di singolo battito con due derivazioni.
 
     Usa blocchi Conv-BN-ReLU-Pool e termina con AdaptiveAvgPool1d(1)
     per ottenere una rappresentazione indipendente dalla lunghezza esatta
@@ -10,7 +10,7 @@ class ecg_classifier(nn.Module):
     il calcolo del flattening per lo strato fully-connected.
     """
 
-    def __init__(self, num_classi=4, in_channels=1):
+    def __init__(self, num_classi=4, in_channels=2):
         super(ecg_classifier, self).__init__()
 
         self.features = nn.Sequential(

@@ -7,18 +7,27 @@ import wfdb
 import matplotlib.pyplot as plt
 
 try:
-    from ...files.preprocessing import preprocess_ecg
+    from preprocessing import preprocess_ecg
 except ImportError:
     sys.path.append(str(Path(__file__).resolve().parents[2]))
     preprocess_ecg = importlib.import_module("files.preprocessing").preprocess_ecg
 
 
 def load_ecg_segment(record_name: str = "101", pn_dir: str = "mitdb", lead: int = 1):
-    record = wfdb.rdrecord(f"../../physionet.org/files/{pn_dir}/1.0.0/{record_name}")
+    record = wfdb.rdrecord(f"../../../dajeee/tirocinio/physionet.org/files/{pn_dir}/1.0.0/{record_name}")
     signal = np.asarray(record.p_signal[:, lead], dtype=float)
     fs = float(record.fs)
     signal = preprocess_ecg(signal, fs)
     return signal, fs
+
+
+def load_ecg_multilead(record_name: str = "101", pn_dir: str = "mitdb", leads: tuple[int, int] = (0, 1)):
+    signals = []
+    fs = None
+    for lead in leads:
+        signal, fs = load_ecg_segment(record_name=record_name, pn_dir=pn_dir, lead=lead)
+        signals.append(signal)
+    return np.stack(signals, axis=0), fs
 
 
 def _pad_segment(signal: np.ndarray, target_length: int) -> np.ndarray:
@@ -68,16 +77,16 @@ def create_dataset(
     for record_name in record_names:
         print(f"Processing record: {record_name}")
 
-        # Carica il segnale
-        signal, fs = load_ecg_segment(
+        # Carica entrambe le derivazioni e mantienile allineate sullo stesso asse temporale.
+        signal, fs = load_ecg_multilead(
             record_name=record_name,
             pn_dir=pn_dir,
-            lead=lead
+            leads=(0, 1),
         )
 
         # Carica le annotazioni del record corrente
         try:
-            ann = wfdb.rdann(f"../../physionet.org/files/{pn_dir}/1.0.0/{record_name}", "atr")
+            ann = wfdb.rdann(f"../../../dajeee/tirocinio/physionet.org/files/{pn_dir}/1.0.0/{record_name}", "atr")
             r_peaks = ann.sample
             beat_symbols = ann.symbol
         except Exception as e:
@@ -102,7 +111,10 @@ def create_dataset(
             end = start + samples_per_segment
 
             # Salva il file del segnale centrato sul battito annotato
-            segment = _pad_segment(signal[start:end], samples_per_segment)
+            segment = np.stack(
+                [_pad_segment(channel[start:end], samples_per_segment) for channel in signal],
+                axis=0,
+            )
             file_name = f"seg{beat_index:05d}.npy"
             relative_file_path = f"{record_name}/{file_name}"
 
@@ -124,9 +136,23 @@ def create_dataset(
 if __name__ == "__main__":
     #create_dataset()
     # Per testare la visualizzazione di un segmento
-    segment = np.load("dataset/200/seg00408.npy")
-    plt.plot(segment)
-    plt.title("Segmento di ECG")
-    plt.xlabel("Campioni")
-    plt.ylabel("Amplitude")
-    plt.show()
+    segment = np.load("dataset/200/seg00409.npy")
+    if segment.ndim == 2 and segment.shape[0] == 2:
+        fig, axes = plt.subplots(2, 1, sharex=True, figsize=(12, 6))
+        lead_names = ["Derivazione 1", "Derivazione 2"]
+
+        for ax, lead_signal, name in zip(axes, segment, lead_names):
+            ax.plot(lead_signal)
+            ax.set_title(name)
+            ax.set_ylabel("Amplitude")
+
+        axes[-1].set_xlabel("Campioni")
+        fig.suptitle("Segmento di ECG")
+        plt.tight_layout()
+        plt.show()
+    else:
+        plt.plot(segment)
+        plt.title("Segmento di ECG")
+        plt.xlabel("Campioni")
+        plt.ylabel("Amplitude")
+        plt.show()

@@ -68,7 +68,7 @@ def main():
     # ---------------------------------------------------------
     # Inizializzazione modello, loss e ottimizzatore
     # ---------------------------------------------------------
-    model = ecg_classifier(num_classi=4).to(device)
+    model = ecg_classifier(num_classi=4, in_channels=2).to(device)
 
     # ---------------- Focal Loss -----------------------------
     # Il bilanciamento delle classi viene gestito dal sampler.

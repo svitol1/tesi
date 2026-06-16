@@ -22,7 +22,12 @@ class ECGDataset(Dataset):
         signal_path = self.base_dir / row["file_path"]
         signal = np.load(signal_path)
 
+        if signal.ndim == 1:
+            signal = np.expand_dims(signal, axis=0)
+        elif signal.ndim != 2:
+            raise ValueError(f"Formato segnale non supportato: shape={signal.shape}")
+
         label = int(row["label"])
 
         # Ritorna i tensori pronti per la rete
-        return torch.tensor(signal, dtype=torch.float32).unsqueeze(0), torch.tensor(label, dtype=torch.long)
+        return torch.tensor(signal, dtype=torch.float32), torch.tensor(label, dtype=torch.long)
