@@ -1,0 +1,406 @@
+\documentclass[11pt,a4paper]{article}
+
+\usepackage[italian]{babel}
+\usepackage[utf8]{inputenc}
+\usepackage[T1]{fontenc}
+\usepackage{geometry}
+\geometry{a4paper, margin=2.5cm}
+\usepackage{titlesec}
+\usepackage{enumitem}
+\usepackage{amsmath}
+\usepackage{xcolor}
+\usepackage{tcolorbox}
+\tcbuselibrary{skins,breakable}
+\usepackage{tabularx}
+\usepackage{booktabs}
+\usepackage{hyperref}
+\usepackage{fancyhdr}
+\usepackage{graphicx}
+
+\definecolor{cardiored}{RGB}{150,20,30}
+\definecolor{cardioblue}{RGB}{20,50,110}
+\definecolor{cardiogray}{RGB}{240,240,240}
+
+\titleformat{\section}
+  {\normalfont\Large\bfseries\color{cardioblue}}
+  {\thesection}{1em}{}
+\titleformat{\subsection}
+  {\normalfont\large\bfseries\color{cardiored}}
+  {\thesubsection}{1em}{}
+
+\newtcolorbox{keybox}[1]{
+  breakable, colback=cardiogray, colframe=cardioblue,
+  fonttitle=\bfseries, title=#1, boxrule=0.6pt, arc=2mm
+}
+
+\pagestyle{fancy}
+\fancyhf{}
+\fancyhead[L]{\small\textit{Patologie Cardiache e Analisi ECG}}
+\fancyhead[R]{\small\thepage}
+\renewcommand{\headrulewidth}{0.4pt}
+
+\hypersetup{
+  colorlinks=true,
+  linkcolor=cardioblue,
+  citecolor=cardioblue,
+  urlcolor=cardioblue,
+  pdftitle={Principali Patologie Cardiache e Riconoscimento tramite ECG},
+  pdfauthor={}
+}
+\begin{document}
+
+\begin{titlepage}
+% Forziamo margini simmetrici e textwidth a 450pt per il frontespizio
+\newgeometry{left=75pt, right=75pt, top=2cm, bottom=2.5cm}
+% OLD: \newgeometry{left=72pt, right=72pt, top=2cm, bottom=2cm}
+\setlength{\textwidth}{450pt}
+
+\begin{center}
+    \includegraphics[width=0.25\linewidth]{logo_unibo.png}\vspace{0.7cm}\\
+
+    {{\Large{\textsc{Alma Mater Studiorum $\cdot$ Universit\`a di Bologna}}}} \\
+    \rule[0.1cm]{15.8cm}{0.1mm}
+    \rule[0.5cm]{15.8cm}{0.6mm}
+
+    {\small{\bf DIPARTIMENTO DI INFORMATICA --- SCIENZA E INGEGNERIA\\
+    Corso di Laurea in Ingegneria e Scienze Informatiche}}
+\end{center}
+
+\vfill
+
+\begin{center}
+    {\LARGE{\bf
+        \linespread{1}\selectfont
+        Analisi di patologie cardiache rilevabili tramite ECG \par
+    }}
+    \vspace{19mm}
+    {\large{\bf Report per lo studio}}
+\end{center}
+
+\vfill
+
+\par
+\noindent
+\hfill
+\begin{minipage}[t]{0.47\textwidth}\raggedleft{}
+    {\large{\bf Presentata da:\\[1mm]
+    Nicholas Benedetti}}
+\end{minipage}
+
+\vfill
+
+\begin{center}
+    {\large{\bf Sessione Unica\\}}
+    {\large{\bf Anno Accademico 2025/2026}}
+\end{center}
+\end{titlepage}
+
+\vspace{1em}
+
+\tableofcontents
+\newpage
+
+% ============================================================
+\section{Richiami sull'elettrocardiogramma normale}
+
+L'elettrocardiogramma (ECG) registra l'attività elettrica del cuore attraverso elettrodi posti sulla cute. Prima di analizzare le patologie è necessario ricordare la morfologia del tracciato normale.
+
+\begin{keybox}{Componenti del tracciato ECG}
+\begin{itemize}[leftmargin=1.2em]
+  \item \textbf{Onda P}: depolarizzazione atriale (durata $<$ 120 ms).
+  \item \textbf{Complesso QRS}: depolarizzazione ventricolare (durata normale 80--120 ms).
+  \item \textbf{Onda T}: ripolarizzazione ventricolare.
+  \item \textbf{Intervallo PR}: dal principio della P al principio del QRS (normale 120--200 ms).
+  \item \textbf{Intervallo QT}: dal principio del QRS alla fine della T; va corretto per la frequenza cardiaca (QTc, formula di Bazett: $QTc = QT/\sqrt{RR}$).
+  \item \textbf{Tratto ST}: segmento tra fine QRS e inizio T, isoelettrico in condizioni normali.
+\end{itemize}
+\end{keybox}
+
+\subsection{Metodo di lettura sistematico}
+Per non tralasciare reperti importanti conviene analizzare l'ECG sempre nello stesso ordine:
+\begin{enumerate}[leftmargin=1.5em]
+  \item Frequenza e ritmo (sinusale o meno).
+  \item Asse elettrico.
+  \item Onda P (morfologia, durata).
+  \item Intervallo PR.
+  \item Complesso QRS (durata, morfologia, voltaggi).
+  \item Tratto ST.
+  \item Onda T.
+  \item Intervallo QT/QTc.
+\end{enumerate}
+
+% ============================================================
+\section{Aritmie sopraventricolari}
+
+\subsection{Fibrillazione atriale (FA)}
+\begin{keybox}{Segni ECG caratteristici}
+\begin{itemize}[leftmargin=1.2em]
+  \item Assenza di onde P distinte, sostituite da oscillazioni irregolari della linea di base (onde \textit{f}).
+  \item Ritmo ventricolare \textbf{irregolare} (intervalli RR variabili in modo caotico).
+  \item Frequenza atriale molto elevata (350--600 bpm), frequenza ventricolare variabile a seconda della conduzione del nodo atrioventricolare (AV).
+  \item QRS solitamente stretto, salvo blocco di branca associato.
+\end{itemize}
+\end{keybox}
+\textbf{Rilevanza clinica}: aumenta il rischio tromboembolico ed è la causa più frequente di ictus cardioembolico.
+
+\subsection{Flutter atriale}
+\begin{keybox}{Segni ECG caratteristici}
+\begin{itemize}[leftmargin=1.2em]
+  \item Onde atriali regolari a \textbf{“dente di sega”} (onde F), ben visibili in derivazioni inferiori (II, III, aVF).
+  \item Frequenza atriale tipica di circa 300 bpm.
+  \item Conduzione AV solitamente fissa (es. 2:1, 3:1, 4:1), con frequenza ventricolare regolare risultante.
+\end{itemize}
+\end{keybox}
+
+\subsection{Tachicardia parossistica sopraventricolare (TPSV)}
+\begin{keybox}{Segni ECG caratteristici}
+\begin{itemize}[leftmargin=1.2em]
+  \item Tachicardia regolare a QRS stretto, frequenza tipicamente 150--220 bpm.
+  \item Onda P spesso non visibile o retrograda (negativa in II, III, aVF), talvolta sovrapposta al QRS o al tratto ST.
+  \item Insorgenza e termine tipicamente improvvisi.
+\end{itemize}
+\end{keybox}
+
+\subsection{Sindrome di Wolff--Parkinson--White (WPW)}
+\begin{keybox}{Segni ECG caratteristici}
+\begin{itemize}[leftmargin=1.2em]
+  \item Intervallo PR corto ($<$ 120 ms).
+  \item \textbf{Onda delta}: impastamento della porzione iniziale del QRS.
+  \item QRS allargato ($>$ 100--110 ms) per pre-eccitazione ventricolare tramite una via accessoria (fascio di Kent).
+  \item Rischio di tachiaritmie da rientro (incluso rischio di FA condotta rapidamente attraverso la via accessoria).
+\end{itemize}
+\end{keybox}
+
+% ============================================================
+\section{Aritmie ventricolari}
+
+\subsection{Extrasistoli ventricolari (PVC)}
+\begin{keybox}{Segni ECG caratteristici}
+\begin{itemize}[leftmargin=1.2em]
+  \item Complesso QRS largo ($>$ 120 ms) e bizzarro, non preceduto da onda P correlata.
+  \item Onda T solitamente discordante rispetto al QRS (direzione opposta).
+  \item Spesso seguito da una pausa compensatoria.
+\end{itemize}
+\end{keybox}
+
+\subsection{Tachicardia ventricolare (TV)}
+\begin{keybox}{Segni ECG caratteristici}
+\begin{itemize}[leftmargin=1.2em]
+  \item Tre o più battiti ventricolari consecutivi a frequenza $>$ 100 bpm.
+  \item QRS largo, ritmo regolare o lievemente irregolare.
+  \item Possibile dissociazione atrio-ventricolare (onde P indipendenti dal QRS).
+  \item Presenza di \textit{fusion beats} o \textit{capture beats} è fortemente suggestiva di TV.
+  \item Distinzione importante rispetto a tachicardia sopraventricolare con blocco di branca (aberranza).
+\end{itemize}
+\end{keybox}
+
+\subsection{Fibrillazione ventricolare (FV)}
+\begin{keybox}{Segni ECG caratteristici}
+\begin{itemize}[leftmargin=1.2em]
+  \item Attività elettrica caotica, completamente disorganizzata.
+  \item Assenza di complessi QRS riconoscibili.
+  \item Emergenza assoluta: assenza di gittata cardiaca efficace, richiede defibrillazione immediata.
+\end{itemize}
+\end{keybox}
+
+\subsection{Torsione di punta}
+\begin{keybox}{Segni ECG caratteristici}
+\begin{itemize}[leftmargin=1.2em]
+  \item Tachicardia ventricolare polimorfa con QRS che ruota progressivamente attorno alla linea isoelettrica.
+  \item Tipicamente associata a QT lungo preesistente.
+\end{itemize}
+\end{keybox}
+
+% ============================================================
+\section{Disturbi della conduzione}
+
+\subsection{Blocchi atrioventricolari (BAV)}
+
+\begin{tabularx}{\textwidth}{@{}l X@{}}
+\toprule
+\textbf{Tipo} & \textbf{Segni ECG} \\
+\midrule
+BAV I grado & PR costantemente allungato ($>$ 200 ms), ogni P è condotta. \\[0.4em]
+BAV II grado, Mobitz I (Luciani--Wenckebach) & Allungamento progressivo del PR fino a un'onda P bloccata (non seguita da QRS); il ciclo si ripete. \\[0.4em]
+BAV II grado, Mobitz II & PR costante nei battiti condotti, con blocco improvviso e imprevedibile di un'onda P, senza allungamento progressivo. Prognosi peggiore, spesso richiede pacemaker. \\[0.4em]
+BAV III grado (completo) & Dissociazione completa fra onde P e complessi QRS: gli atri e i ventricoli battono in modo indipendente (ritmo di scappamento giunzionale o ventricolare). \\
+\bottomrule
+\end{tabularx}
+
+\subsection{Blocchi di branca}
+
+\begin{keybox}{Blocco di branca destra (BBD)}
+\begin{itemize}[leftmargin=1.2em]
+  \item QRS $>$ 120 ms.
+  \item Morfologia \textbf{RSR'} (“a orecchie di coniglio”) in V1--V2.
+  \item Onda S larga e slargata in derivazioni laterali (I, aVL, V5--V6).
+\end{itemize}
+\end{keybox}
+
+\begin{keybox}{Blocco di branca sinistra (BBS)}
+\begin{itemize}[leftmargin=1.2em]
+  \item QRS $>$ 120 ms.
+  \item Onda R larga e slargata (spesso con incisura) in derivazioni laterali (I, aVL, V5--V6).
+  \item Assenza di onda Q settale in V5--V6.
+  \item Alterazioni secondarie del tratto ST e dell'onda T, discordanti rispetto al QRS.
+  \item Rende difficile la diagnosi ECG di ischemia acuta (si utilizzano i criteri di Sgarbossa).
+\end{itemize}
+\end{keybox}
+
+% ============================================================
+\section{Cardiopatia ischemica}
+
+\subsection{Angina / ischemia miocardica}
+\begin{keybox}{Segni ECG caratteristici}
+\begin{itemize}[leftmargin=1.2em]
+  \item Sottoslivellamento del tratto ST (tipicamente orizzontale o discendente) durante l'episodio ischemico.
+  \item Inversione dell'onda T.
+  \item Reversibilità dei reperti dopo risoluzione del sintomo (es. dopo somministrazione di nitrati).
+\end{itemize}
+\end{keybox}
+
+\subsection{Infarto miocardico con sopraslivellamento ST (STEMI)}
+\begin{keybox}{Segni ECG caratteristici}
+\begin{itemize}[leftmargin=1.2em]
+  \item Sopraslivellamento del tratto ST $\geq$ 1 mm in almeno due derivazioni contigue (\ $\geq$ 2 mm in V2--V3 nell'uomo, \ $\geq$ 1,5 mm nella donna).
+  \item Evoluzione temporale tipica: onde T iperacute $\rightarrow$ sopraslivellamento ST $\rightarrow$ comparsa di onde Q patologiche $\rightarrow$ normalizzazione parziale dell'ST con inversione della T.
+  \item \textbf{Sottoslivellamento ST speculare} (immagine a specchio) nelle derivazioni opposte alla sede infartuale.
+\end{itemize}
+\end{keybox}
+
+\textbf{Localizzazione della sede infartuale in base alle derivazioni interessate:}
+
+\begin{tabularx}{\textwidth}{@{}l X@{}}
+\toprule
+\textbf{Sede} & \textbf{Derivazioni con alterazioni} \\
+\midrule
+Anteriore & V1--V4 \\
+Anteroseptale & V1--V3 \\
+Anterolaterale & V3--V6, I, aVL \\
+Inferiore & II, III, aVF \\
+Laterale & I, aVL, V5--V6 \\
+Posteriore & sottoslivellamento speculare in V1--V3 (onda R alta e ST sottoslivellato) \\
+Ventricolo destro & V3R--V4R (da ricercare in caso di infarto inferiore) \\
+\bottomrule
+\end{tabularx}
+
+\subsection{Infarto senza sopraslivellamento ST (NSTEMI)}
+\begin{keybox}{Segni ECG caratteristici}
+\begin{itemize}[leftmargin=1.2em]
+  \item Sottoslivellamento ST e/o inversione dell'onda T, senza sopraslivellamento persistente.
+  \item Diagnosi definitiva richiede il dosaggio della troponina, poiché l'ECG può anche risultare normale.
+\end{itemize}
+\end{keybox}
+
+\subsection{Onde Q patologiche (necrosi pregressa)}
+\begin{keybox}{Criteri}
+\begin{itemize}[leftmargin=1.2em]
+  \item Durata $\geq$ 40 ms (1 quadratino piccolo).
+  \item Profondità $\geq$ 25\% dell'altezza dell'onda R corrispondente.
+  \item Indicano una zona di necrosi miocardica, generalmente permanente.
+\end{itemize}
+\end{keybox}
+
+% ============================================================
+\section{Ipertrofia e sovraccarico delle camere cardiache}
+
+\subsection{Ipertrofia ventricolare sinistra (IVS)}
+\begin{keybox}{Segni ECG (criteri di Sokolow--Lyon)}
+\begin{itemize}[leftmargin=1.2em]
+  \item S in V1 + R in V5 o V6 $>$ 35 mm.
+  \item Alterazioni secondarie del tratto ST e dell'onda T (“strain pattern”) in derivazioni laterali.
+  \item Deviazione assiale sinistra spesso associata.
+\end{itemize}
+\end{keybox}
+
+\subsection{Ipertrofia ventricolare destra (IVD)}
+\begin{keybox}{Segni ECG caratteristici}
+\begin{itemize}[leftmargin=1.2em]
+  \item Onda R dominante in V1 (R $>$ S).
+  \item Deviazione assiale destra.
+  \item Possibile sovraccarico atriale destro associato.
+\end{itemize}
+\end{keybox}
+
+\subsection{Sovraccarico atriale}
+\begin{keybox}{Segni ECG caratteristici}
+\begin{itemize}[leftmargin=1.2em]
+  \item \textbf{P-mitrale} (sovraccarico atriale sinistro): onda P bifida e slargata ($>$ 120 ms), ben visibile in II.
+  \item \textbf{P-polmonare} (sovraccarico atriale destro): onda P alta e appuntita ($>$ 2,5 mm) in II, III, aVF.
+\end{itemize}
+\end{keybox}
+
+% ============================================================
+\section{Canalopatie e altre condizioni rilevanti}
+
+\subsection{Sindrome del QT lungo}
+\begin{keybox}{Segni ECG caratteristici}
+\begin{itemize}[leftmargin=1.2em]
+  \item QTc prolungato (generalmente $>$ 450 ms nell'uomo, $>$ 460 ms nella donna).
+  \item Rischio aumentato di torsione di punta e morte cardiaca improvvisa.
+  \item Cause: congenite (canalopatie) o acquisite (farmaci, squilibri elettrolitici come ipokaliemia e ipomagnesiemia).
+\end{itemize}
+\end{keybox}
+
+\subsection{Sindrome di Brugada}
+\begin{keybox}{Segni ECG caratteristici}
+\begin{itemize}[leftmargin=1.2em]
+  \item Sopraslivellamento ST “a tenda” o “a sella” in V1--V3, tipico del pattern di tipo 1.
+  \item Associata a rischio di morte cardiaca improvvisa da aritmie ventricolari, in cuore strutturalmente normale.
+\end{itemize}
+\end{keybox}
+
+\subsection{Pericardite acuta}
+\begin{keybox}{Segni ECG caratteristici}
+\begin{itemize}[leftmargin=1.2em]
+  \item Sopraslivellamento ST diffuso, concavo verso l'alto, in quasi tutte le derivazioni (non limitato a un territorio coronarico).
+  \item Sottoslivellamento del tratto PR, spesso reperto molto specifico.
+  \item Assenza di immagine speculare (a differenza dello STEMI).
+\end{itemize}
+\end{keybox}
+
+\subsection{Squilibri elettrolitici}
+\begin{keybox}{Iperkaliemia}
+\begin{itemize}[leftmargin=1.2em]
+  \item Onde T alte e appuntite (“a tenda”).
+  \item Progressivo allargamento del QRS, riduzione/scomparsa dell'onda P nei casi severi.
+  \item Rischio di arresto cardiaco in asistolia se non trattata.
+\end{itemize}
+\end{keybox}
+\begin{keybox}{Ipokaliemia}
+\begin{itemize}[leftmargin=1.2em]
+  \item Appiattimento dell'onda T, comparsa di onda U prominente.
+  \item Sottoslivellamento del tratto ST.
+  \item Prolungamento dell'intervallo QT (rischio di torsione di punta).
+\end{itemize}
+\end{keybox}
+
+% ============================================================
+\section{Tabella riassuntiva}
+
+\begin{tabularx}{\textwidth}{@{}l X@{}}
+\toprule
+\textbf{Patologia} & \textbf{Segno ECG chiave} \\
+\midrule
+Fibrillazione atriale & Assenza di P, RR irregolarmente irregolare \\
+Flutter atriale & Onde F “a dente di sega” \\
+WPW & PR corto, onda delta \\
+TV & QRS largo, dissociazione AV, fusion/capture beats \\
+FV & Attività caotica, nessun QRS riconoscibile \\
+BAV Mobitz I & PR che si allunga progressivamente \\
+BAV Mobitz II & PR costante, blocco improvviso \\
+BAV III grado & Dissociazione completa P--QRS \\
+BBD & RSR' in V1, QRS $>$ 120 ms \\
+BBS & R slargata in V5--V6, assenza Q settale \\
+STEMI & Sopraslivellamento ST $\geq$ 1--2 mm, immagine speculare \\
+NSTEMI & Sottoslivellamento ST / T invertita \\
+IVS & Sokolow--Lyon $>$ 35 mm, strain pattern \\
+QT lungo & QTc $>$ 450--460 ms \\
+Brugada & ST a sella/tenda in V1--V3 \\
+Pericardite & ST diffuso concavo, PR sottoslivellato \\
+Iperkaliemia & T a tenda, QRS largo \\
+Ipokaliemia & T piatta, onda U, QT lungo \\
+\bottomrule
+\end{tabularx}
+
+\end{document}

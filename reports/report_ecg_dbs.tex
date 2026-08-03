@@ -1,0 +1,168 @@
+\documentclass[11pt,a4paper]{article}
+\usepackage[utf8]{inputenc}
+\usepackage[T1]{fontenc}
+\usepackage[italian]{babel}
+\usepackage[margin=2cm]{geometry}
+\usepackage{booktabs}
+\usepackage{longtable}
+\usepackage{array}
+\usepackage{xcolor}
+\usepackage{hyperref}
+\usepackage{fancyhdr}
+\usepackage{enumitem}
+
+\hypersetup{
+    colorlinks=true,
+    linkcolor=blue,
+    urlcolor=blue,
+    citecolor=blue
+}
+
+\pagestyle{fancy}
+\fancyhf{}
+\rhead{Database ECG pubblici}
+\lhead{Report tecnico}
+\rfoot{\thepage}
+
+\title{\textbf{Database ECG pubblici} \\
+\large Caratteristiche tecniche e principali ambiti di utilizzo}
+\author{Benedetti Nicholas}
+
+\newcolumntype{P}[1]{>{\raggedright\arraybackslash}p{#1}}
+
+\begin{document}
+
+\maketitle
+\thispagestyle{fancy}
+
+\section*{Introduzione}
+Questo report riassume le caratteristiche principali dei database ECG open access più rilevanti disponibili online, con particolare attenzione a quelli utilizzabili per lo sviluppo e la validazione di algoritmi di \emph{deep learning} per l'analisi in tempo reale di segnali ECG a 2--3 derivazioni in contesti di terapia intensiva (ICU) e sala operatoria (OR). Le informazioni sono state reperite, per quanto possibile, direttamente dalle pagine ufficiali dei database su \href{https://physionet.org}{PhysioNet} o dalle relative pubblicazioni originali.
+
+\section*{Tabella comparativa dei database}
+
+\begin{longtable}{P{3.2cm}P{1.6cm}P{2.0cm}P{1.6cm}P{1.6cm}P{5.5cm}}
+\toprule
+\textbf{Database} & \textbf{N.\ derivazioni} & \textbf{Durata registrazioni} & \textbf{Freq.\ campionamento} & \textbf{N.\ pazienti / record} & \textbf{Utilizzo principale} \\
+\midrule
+\endfirsthead
+\toprule
+\textbf{Database} & \textbf{N.\ derivazioni} & \textbf{Durata registrazioni} & \textbf{Freq.\ campionamento} & \textbf{N.\ pazienti / record} & \textbf{Utilizzo principale} \\
+\midrule
+\endhead
+
+MIT-BIH Arrhythmia Database (MITDB) &
+2 (tipicamente MLII + V1) &
+$\sim$30 min &
+360 Hz &
+47 pazienti / 48 record &
+Benchmark storico per la classificazione automatica dei battiti e delle aritmie; $\sim$110\,000 annotazioni di battito validate da cardiologi. \\
+\midrule
+
+MIT-BIH Atrial Fibrillation Database (AFDB) &
+2 &
+10 ore (per registrazione) &
+250 Hz &
+25 pazienti &
+Rilevamento e classificazione della fibrillazione atriale (AF) su registrazioni Holter di lunga durata. \\
+\midrule
+
+Long-Term ST Database (LTST~DB) &
+2 o 3 &
+21--24 ore &
+250 Hz &
+80 soggetti / 86 record &
+Sviluppo e valutazione di rilevatori automatici di ischemia (episodi ST) e studio della dinamica dell'ischemia miocardica su Holter di lunga durata. \\
+\midrule
+
+European ST-T Database &
+2 &
+2 ore &
+250 Hz &
+79 soggetti / 90 record &
+Valutazione di algoritmi per il rilevamento di cambiamenti del tratto ST e dell'onda T (ischemia). \\
+\midrule
+
+MGH/MF Waveform Database &
+3 (tipicamente) + segnali emodinamici &
+12--86 min (in genere $\sim$1 ora) &
+360 Hz &
+250 pazienti &
+Monitoraggio multiparametrico in \textbf{terapia intensiva, sala operatoria e laboratorio emodinamico}; denoising e sviluppo di algoritmi per segnali ECG rumorosi in ambiente critico. \`E il database storicamente più vicino allo scenario ICU/OR a 3 derivazioni. \\
+\midrule
+
+PTB-XL &
+12 &
+10 s &
+500 Hz (disponibile anche a 100 Hz) &
+18\,885 pazienti / 21\,837 record &
+Benchmark di riferimento per la classificazione diagnostica multi-etichetta (infarto, disturbi di conduzione, ipertrofia, alterazioni ST/T, normale) tramite deep learning. \\
+\midrule
+
+LUDB (Lobachevsky University Database) &
+12 &
+10 s &
+500 Hz &
+200 pazienti / 200 record &
+Validazione di algoritmi di \emph{delineazione} (individuazione di onde P, QRS, T) con annotazioni manuali indipendenti per ciascuna derivazione. \\
+\midrule
+
+MIMIC-III Waveform Database (Matched Subset) &
+Variabile (2--5 derivazioni ECG, incluse configurazioni a 3 derivazioni), non tutte simultanee &
+Da poche ore a diversi giorni per singolo ricovero &
+125 Hz &
+10\,282 pazienti / 22\,317 record d'onda &
+Monitoraggio multiparametrico continuo in \textbf{ICU} (ECG, PPG, pressione arteriosa, respirazione); sviluppo di algoritmi per aritmie, stima della pressione, riduzione falsi allarmi. Richiede credenziali (data use agreement). \\
+\midrule
+
+MIMIC-IV-ECG (Diagnostic ECG Matched Subset) &
+12 &
+10 s &
+500 Hz &
+$\sim$160\,000 pazienti / $\sim$800\,000 record &
+Ampio dataset di ECG diagnostici collegati alla cartella clinica MIMIC-IV; utile per pre-training su larga scala di modelli deep learning. Richiede credenziali. \\
+\midrule
+
+PhysioNet/CinC Challenge 2015 (False Arrhythmia Alarms) &
+2 ECG + almeno 1 segnale pulsatile (PPG/ABP) &
+5 minuti (finestra ``real-time''), + 30 s aggiuntivi nel set retrospettivo &
+250 Hz (segnali ri-campionati) &
+1\,250 segmenti multiparametrici (750 training + 500 hidden test) &
+Task specifico di \textbf{riduzione dei falsi allarmi da aritmia in ICU} (asistolia, bradi/tachicardia, VT, VF); riferimento diretto per algoritmi anti-``alarm fatigue''. \\
+\midrule
+
+MHD Effect on 12-lead and 3-lead ECGs (in scanner MRI) &
+3 (e 12) &
+Variabile (acquisizioni durante scansioni MRI) &
+Non specificata in modo uniforme &
+Non specificato pubblicamente &
+Studio dell'effetto magnetoidrodinamico (MHD) sul segnale ECG durante scansioni MR (1T--7T); utilizzo di nicchia, non orientato a ICU/OR standard. \\
+
+\bottomrule
+\end{longtable}
+
+\section*{Osservazioni}
+
+\begin{itemize}[leftmargin=1.2em]
+    \item Il database più direttamente rilevante per uno scenario \textbf{ICU/sala operatoria a 3 derivazioni} è il \textbf{MGH/MF Waveform Database}: è l'unico, tra quelli elencati, registrato esplicitamente in ambito critical care/OR/cath lab con 3 derivazioni ECG accanto a segnali emodinamici (pressione arteriosa, PAP, CVP, CO2).
+    \item I database a 12 derivazioni (PTB-XL, LUDB, MIMIC-IV-ECG) sono lo standard per la classificazione diagnostica, sono utili come base per il pre-training di modelli che verranno poi adattati/fine-tuned su un sottoinsieme di derivazioni.
+    \item Il \textbf{MIMIC-III Waveform Database} è il più ricco in termini di volume e di contesto clinico realistico per l'ICU, ma il numero di derivazioni ECG disponibili varia da record a record e non sempre corrisponde esattamente a 3; inoltre richiede una procedura di accesso controllato (training CITI + data use agreement su PhysioNet).
+    \item Il \textbf{PhysioNet/CinC Challenge 2015} resta il riferimento più diretto per il problema clinico della riduzione dei falsi allarmi in ICU, un aspetto particolarmente rilevante nella pratica clinica (\emph{alarm fatigue}).
+    \item Tutti i database elencati (salvo dove indicato) sono liberamente accessibili su \href{https://physionet.org}{PhysioNet} nel formato WFDB (WaveForm DataBase), utilizzabile tramite la libreria python  \texttt{wfdb}.
+\end{itemize}
+
+\section*{Fonti}
+\begin{itemize}[leftmargin=1.2em]
+    \item \url{https://physionet.org/content/mitdb/1.0.0/}
+    \item \url{https://physionet.org/content/afdb/1.0.0/}
+    \item \url{https://physionet.org/content/ltstdb/1.0.0/}
+    \item \url{https://physionet.org/content/edb/1.0.0/}
+    \item \url{https://physionet.org/content/mghdb/1.0.0/}
+    \item \url{https://physionet.org/content/ptb-xl/1.0.3/}
+    \item \url{https://physionet.org/content/ludb/1.0.1/}
+    \item \url{https://physionet.org/content/mimic3wdb-matched/1.0/}
+    \item \url{https://physionet.org/content/mimic-iv-ecg/1.0/}
+    \item \url{https://physionet.org/content/challenge-2015/1.0.0/} (\url{https://moody-challenge.physionet.org/2015/})
+\end{itemize}
+
+\end{document}
+
