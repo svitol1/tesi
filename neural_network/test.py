@@ -188,7 +188,7 @@ def test_last_patient():
     """Test using all segments from the last patient in the metadata."""
     csv_file = "data_prep/dataset/metadata.csv"
     base_dir = "data_prep/dataset"
-    model_path = "best_ecg_model.pth"
+    model_path = "top_accuracy_2L.pth"
 
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
@@ -230,5 +230,5 @@ def test_last_patient():
     print_summary(labels, preds, probs, paths)
 
 if __name__ == "__main__":
-    test_random_segments(100)
+    #test_random_segments(100)
     test_last_patient()
