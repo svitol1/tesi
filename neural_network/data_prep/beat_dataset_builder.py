@@ -1,48 +1,31 @@
 """
-build_ptbxl_beat_dataset.py
-
 Preprocessing del database PTB-XL (PhysioNet) per creare un dataset di
-"battiti" segmentati, da usare per un modello CNN/GCN che rileva
+singoli battiti segmentati, da usare per un modello CNN/GCN che rileva
 il posizionamento errato degli elettrodi nell'ECG a 12 derivazioni.
 
-COSA FA
 -------
 Per ogni registrazione ECG a 12 derivazioni (10 secondi):
-  1. Carica il segnale grezzo (wfdb).
-  2. Rileva i picchi R su una derivazione "guida" (default: lead II).
-  3. Per ogni picco R trovato, estrae una finestra sincrona su TUTTE le
+  1. Carico il segnale grezzo (wfdb).
+  2. Rilevo i picchi R su una derivazione "guida" (default: lead II).
+  3. Per ogni picco R trovato, estraggo una finestra sincrona su TUTTE le
      12 derivazioni: [R - 300 ms, R + 600 ms].
-  4. Scarta i battiti troppo vicini all'inizio/fine della registrazione
+  4. Scarto i battiti troppo vicini all'inizio/fine della registrazione
      (finestra che uscirebbe dai 10s).
-  5. Salva OGNI battito come file .npy separato (seg000000.npy,
+  5. Salvo ogni battito come file .npy separato (seg000000.npy,
      seg000001.npy, ...) in <output_dir>/segments/, shape (window_len, 12).
-     Un CSV di indice collega ogni file ai metadati (ecg_id, patient_id,
+     Un file CSV di indice collega ogni file ai metadati (ecg_id, patient_id,
      strat_fold, posizione del picco R, ecc.).
-
-NOTE IMPORTANTI PER IL TUO CASO D'USO (misplacement detection)
 ----------------------------------------------------------------
 - Il rilevamento dei picchi R viene fatto su UNA sola derivazione guida
   e la stessa posizione temporale viene poi applicata a TUTTE le 12
-  derivazioni. Questo è intenzionale: se rilevassi i picchi
+  derivazioni. Questo è voluto, dato che, se rilevassi i picchi
   indipendentemente su ogni derivazione, uno scambio di elettrodi
   potrebbe disallineare le finestre tra derivazioni, "nascondendo" col
-  preprocessing proprio l'anomalia che vuoi far riconoscere al modello.
+  preprocessing proprio l'anomalia che vogliamo far riconoscere al modello.
 - Lo split train/val/test va fatto per PAZIENTE (patient_id), non per
-  battito né per registrazione, altrimenti hai data leakage. PTB-XL
+  battito né per registrazione, altrimenti avremmo data leakage. PTB-XL
   fornisce già 'strat_fold' pensato per questo: fold 1-8 = train,
   9 = val, 10 = test (convenzione standard del paper originale di PTB-XL).
-
-REQUISITI
----------
-pip install wfdb neurokit2 tqdm pandas numpy --break-system-packages
-
-USO
----
-python build_ptbxl_beat_dataset.py \
-    --ptbxl_root /path/to/ptb-xl \
-    --output_dir /path/to/output \
-    --sampling_rate 500 \
-    --guide_lead II
 """
 
 import argparse
@@ -55,7 +38,7 @@ import wfdb
 from tqdm import tqdm
 
 # Le 12 derivazioni standard, nell'ordine in cui compaiono nei file PTB-XL
-LEAD_NAMES = ["I", "II", "III", "aVR", "aVL", "aVF",
+LEAD_NAMES = ["I", "II", "III", "AVR", "AVL", "AVF",
               "V1", "V2", "V3", "V4", "V5", "V6"]
 
 # Numero di cifre usate nel nome dei file seg000000.npy -> fino a 10^7 - 1 battiti
@@ -67,16 +50,7 @@ FILENAME_DIGITS = 7
 # --------------------------------------------------------------------------
 
 def load_ptbxl_metadata(ptbxl_root: str) -> pd.DataFrame:
-    """
-    Carica ptbxl_database.csv.
 
-    NOTA: la colonna 'scp_codes' contiene un dizionario scritto come
-    stringa (es. "{'NORM': 100.0}"), utile solo se serve la diagnosi
-    clinica. Per la segmentazione dei battiti non serve, quindi qui non
-    viene parsata (si evita così la dipendenza da 'ast'/'eval' su dati
-    esterni). Se in futuro ti servisse, puoi parsarla con json dopo aver
-    sostituito gli apici singoli con doppi, oppure con ast.literal_eval.
-    """
     path = os.path.join(ptbxl_root, "ptbxl_database.csv")
     df = pd.read_csv(path, index_col="ecg_id")
     return df
@@ -97,7 +71,7 @@ def load_raw_signal(ptbxl_root: str, row: pd.Series, sampling_rate: int) -> np.n
     record_path = os.path.join(ptbxl_root, rel_path)
     signal, meta = wfdb.rdsamp(record_path)
     assert meta["sig_name"] == LEAD_NAMES, (
-        f"Ordine derivazioni inatteso: {meta['sig_name']}"
+        f"Ordine derivazioni sbagliato: {meta['sig_name']}"
     )
     return signal.astype(np.float32)
 
@@ -186,7 +160,7 @@ def build_dataset(ptbxl_root: str, output_dir: str, sampling_rate: int = 500,
     global_beat_counter = 0
 
     for ecg_id, row in tqdm(meta_df.iterrows(), total=len(meta_df),
-                             desc="Processamento registrazioni"):
+                             desc="Processing registrazioni"):
         try:
             signal = load_raw_signal(ptbxl_root, row, sampling_rate)
         except Exception as e:
