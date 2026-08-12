@@ -31,7 +31,9 @@ Per ogni registrazione ECG a 12 derivazioni (10 secondi):
 import argparse
 import os
 
-import neurokit2 as nk
+from preprocessing import preprocess_ecg
+from pan_tompkins_algo import detect_r_peaks_pan_tompkins
+
 import numpy as np
 import pandas as pd
 import wfdb
@@ -88,18 +90,19 @@ def load_raw_signal(ptbxl_root: str, row: pd.Series, sampling_rate: int) -> np.n
 def detect_r_peaks(signal_12lead: np.ndarray, fs: int, guide_lead: str = "II"):
     """
     Rileva i picchi R sulla derivazione guida.
+    Applica preprocessing prima del rilevamento.
     Ritorna un array di indici campione (int). Vuoto se il rilevamento fallisce.
     """
     # ottiene l'indice della derivazione guida nell'array 12-lead
     lead_idx = LEAD_NAMES.index(guide_lead)
     # estrae la singola derivazione da analizzare
     lead_signal = signal_12lead[:, lead_idx]
+    # applica preprocessing al segnale prima del rilevamento dei picchi
+    lead_signal = preprocess_ecg(lead_signal, fs)
 
     try:
-        # usa neurokit2 per rilevare i picchi R e fare denoising
-        _, info = nk.ecg_peaks(lead_signal, sampling_rate=fs, method="neurokit")
-        # estrae la lista di indici dei picchi R
-        r_peaks = np.asarray(info["ECG_R_Peaks"], dtype=int)
+        # usa l'algoritmo Pan-Tompkins per rilevare i picchi R
+        r_peaks = detect_r_peaks_pan_tompkins(lead_signal, fs)
     except Exception:
         r_peaks = np.array([], dtype=int)
 
@@ -112,7 +115,7 @@ def detect_r_peaks(signal_12lead: np.ndarray, fs: int, guide_lead: str = "II"):
 
 
 def segment_beats(signal_12lead: np.ndarray, r_peaks: np.ndarray, fs: int,
-                   pre_ms: float = 300.0, post_ms: float = 600.0):
+                   pre_ms: float = 400.0, post_ms: float = 600.0):
     """
     Estrae, per ogni picco R, una finestra [R-pre_ms, R+post_ms] su tutte
     le 12 derivazioni.
@@ -155,7 +158,7 @@ def segment_beats(signal_12lead: np.ndarray, r_peaks: np.ndarray, fs: int,
 
 
 def build_dataset(ptbxl_root: str, output_dir: str, sampling_rate: int = 500,
-                   guide_lead: str = "II", pre_ms: float = 300.0,
+                   guide_lead: str = "II", pre_ms: float = 400.0,
                    post_ms: float = 600.0, min_beats_per_record: int = 1,
                    limit: int = None):
     """

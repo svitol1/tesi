@@ -1,7 +1,7 @@
 """
 Prendiamo in input l'indice dei battiti già segmentati (output di
-build_ptbxl_beat_dataset.py: beats_index.csv + cartella segments/) 
-e generiamo il dataset finale per l'addestramento del modello di 
+build_ptbxl_beat_dataset.py: beats_index.csv + cartella segments/)
+e generiamo il dataset finale per l'addestramento del modello di
 rilevamento del malposizionamento degli elettrodi.
 
 REGOLE APPLICATE
