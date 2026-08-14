@@ -1,3 +1,8 @@
+beat_dataset/
+misplacement_dataset/
+physionet.org/
+georgia_dataset/
+
 .venv/
 
 __pycache__/

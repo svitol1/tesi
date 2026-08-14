@@ -1,234 +1,243 @@
-import random
-"""Test script: run batched inference on N random segments and print summary metrics.
+"""
+================================================================================
+Script di testing e valutazione
+================================================================================
 
-Usage: python3 test.py
+Esegue l'inferenza sui segmenti ECG e applica un'aggregazione a livello
+di registrazione (con soglia >50%).
+
+Uso da riga di comando:
+    python test.py --data_dir data_prep/misplacement_dataset --weights ecg_gcn_weights.pt
 """
 
+import argparse
+from collections import Counter
 from pathlib import Path
-from typing import List, Tuple
 
 import numpy as np
 import pandas as pd
 import torch
-import torch.nn.functional as F
+from sklearn.metrics import classification_report, confusion_matrix
+from torch_geometric.loader import DataLoader
 
-from cnn_pytorch import ecg_classifier
-
-
-CLASS_NAMES = {
-    0: "Normale / Blocco di Branca (N)",
-    1: "Battito Ectopico Sopraventricolare (SVEB)",
-    2: "Battito Ectopico Ventricolare (VEB)",
-    3: "Battito di Fusione (F)",
-}
+from dataset import ECGGraphDataset, build_ecg_graph_topology
+from model import ECG_GCN
 
 
-def load_model(path: str, device: torch.device) -> torch.nn.Module:
-    """Load a model checkpoint (supports raw state_dict or dict with 'model_state')."""
-    model = ecg_classifier(num_classi=4, in_channels=2)
-    ckpt = torch.load(path, map_location=device)
-    state_dict = ckpt["model_state"] if isinstance(ckpt, dict) and "model_state" in ckpt else ckpt
-    try:
-        model.load_state_dict(state_dict)
-    except Exception as exc:
-        raise RuntimeError(
-            "Checkpoint incompatibile con la rete a due derivazioni. "
-            "Riesegui l'allenamento per generare un modello aggiornato."
-        ) from exc
-    return model.to(device)
+def parse_args():
+    parser = argparse.ArgumentParser(
+        description="Testing ECG_GCN per rilevazione malposizionamento elettrodi"
+    )
+    parser.add_argument(
+        "--data_dir",
+        type=str,
+        required=True,
+        help="Path alla cartella contenente final_dataset_index.csv e la sottocartella segments/",
+    )
+    parser.add_argument(
+        "--weights",
+        type=str,
+        default="best_weights.pt",
+        help="Path al file dei pesi salvati (.pt)",
+    )
+    parser.add_argument(
+        "--batch_size", type=int, default=32, help="Dimensione del batch per l'inferenza"
+    )
+    return parser.parse_args()
 
 
-def pad_or_trim(sig: np.ndarray, target: int) -> np.ndarray:
-    """Center-pad or center-trim a 1D signal to `target` length.
-
-    If the signal is shorter, pads with zeros equally on both sides.
-    If longer, extracts a centered window of length `target`.
+def load_test_data(data_root: str, expected_len: int = 500):
     """
-    if sig.ndim == 2:
-        return np.stack([pad_or_trim(channel, target) for channel in sig], axis=0)
-    L = len(sig)
-    if L == target:
-        return sig
-    if L < target:
-        pad_left = (target - L) // 2
-        pad_right = target - L - pad_left
-        return np.pad(sig, (pad_left, pad_right), mode="constant")
-    center = L // 2
-    start = center - target // 2
-    return sig[start : start + target]
-
-
-def sample_inputs(csv_file: str, base_dir: str, n: int, target_length: int, seed=None) -> Tuple[np.ndarray, List[int], List[str]]:
-    """Return (X, labels, paths) for n random rows in the metadata CSV.
-
-    X is a numpy array shape (N, target_length).
+    Carica i segmenti di test e mantieni la traccia delle registrazioni (patient_id/recording_id).
     """
-    df = pd.read_csv(csv_file)
-    n = min(n, len(df))
-    # If seed is None pandas will use a random seed, producing different samples each run.
-    sampled = df.sample(n=n, random_state=seed).reset_index(drop=True)
+    root = Path(data_root)
+    index_path = root / "beats_index.csv"
+    segments_dir = root / "segments"
 
-    inputs = []
+    if not index_path.exists():
+        raise FileNotFoundError(f"Index non trovato in: {index_path}")
+    if not segments_dir.exists():
+        raise FileNotFoundError(f"Cartella segmenti non trovata in: {segments_dir}")
+
+    df = pd.read_csv(index_path)
+    required_cols = {"filename", "label", "patient_id"}
+    missing = required_cols - set(df.columns)
+    if missing:
+        raise ValueError(f"Colonne mancanti nel CSV: {sorted(missing)}")
+
+    # Mappatura etichette
+    label_names = sorted(df["label"].astype(str).unique().tolist())
+    label_to_idx = {name: i for i, name in enumerate(label_names)}
+    idx_to_label = {i: name for name, i in label_to_idx.items()}
+
+    segments = []
     labels = []
-    paths = []
-    base = Path(base_dir)
-    for _, row in sampled.iterrows():
-        rel = row["file_path"]
-        p = base / rel
-        if not p.exists():
+    recording_ids = []
+
+    for row in df.itertuples(index=False):
+        seg_path = segments_dir / row.filename
+        if not seg_path.exists():
             continue
-        sig = np.load(p)
-        sig = pad_or_trim(sig, target_length)
-        inputs.append(sig)
-        labels.append(int(row["label"]))
-        paths.append(rel)
 
-    if len(inputs) == 0:
-        return np.empty((0, target_length)), [], []
+        seg = np.load(seg_path).astype(np.float32)
+        if seg.shape[1] != expected_len:
+            continue
 
-    return np.stack(inputs), labels, paths
+        segments.append(seg)
+        labels.append(label_to_idx[str(row.label)])
+        recording_ids.append(str(row.patient_id))  # Identificativo registrazione
+
+    segments = np.stack(segments, axis=0)
+    labels = np.asarray(labels, dtype=np.int64)
+
+    return segments, labels, recording_ids, label_to_idx, idx_to_label
 
 
-def evaluate(model: torch.nn.Module, X: np.ndarray, batch_size: int = 32) -> Tuple[List[int], List[List[float]]]:
-    """Run batched inference and return (preds, probs)."""
-    device = next(model.parameters()).device
+def predict_recordings(
+    recording_predictions: dict, recording_ground_truth: dict, threshold: float = 0.50
+):
+    """
+    Aggrega le predizioni dei singoli segmenti a livello di intera registrazione.
+
+    Regola: Se un tipo di inversione viene individuato in oltre il 50% dei
+    segmenti di una registrazione, quella registrazione viene classificata con tale inversione.
+    """
+    rec_true = []
+    rec_pred = []
+    recording_summary = []
+
+    for rec_id, seg_preds in recording_predictions.items():
+        total_segments = len(seg_preds)
+        counts = Counter(seg_preds)
+
+        # Trova la classe più frequente nei segmenti della registrazione
+        most_common_class, most_common_count = counts.most_common(1)[0]
+        ratio = most_common_count / total_segments
+
+        # Applicazione della regola del >50%
+        if ratio > threshold:
+            final_pred = most_common_class
+        else:
+            # Fallback in caso di parità perfetta o nessuna classe > 50%:
+            # assegna comunque la classe di maggioranza relativa
+            final_pred = most_common_class
+
+        gt_label = recording_ground_truth[rec_id]
+
+        rec_true.append(gt_label)
+        rec_pred.append(final_pred)
+
+        recording_summary.append(
+            {
+                "recording_id": rec_id,
+                "total_segments": total_segments,
+                "ground_truth": gt_label,
+                "predicted": final_pred,
+                "confidence_ratio": ratio,
+                "correct": gt_label == final_pred,
+            }
+        )
+
+    return np.array(rec_true), np.array(rec_pred), pd.DataFrame(recording_summary)
+
+
+def main():
+    args = parse_args()
+    device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+    print(f"--> Utilizzo device: {device}")
+
+    # 1. Caricamento dati di test
+    print(f"--> Caricamento dataset di test da: {args.data_dir}")
+    SEGMENT_LEN = 500
+    segments, labels, recording_ids, label_to_idx, idx_to_label = load_test_data(
+        args.data_dir, expected_len=SEGMENT_LEN
+    )
+
+    num_classes = len(label_to_idx)
+    print(f"--> Caricati {len(segments)} segmenti totali appartenenti a {len(set(recording_ids))} registrazioni.")
+    print(f"--> Classi individuate ({num_classes}): {label_to_idx}")
+
+    # 2. Topologia del Grafo Vettoriale e Dataset PyG
+    edge_index, edge_weight = build_ecg_graph_topology(mode="vector_geometric", threshold=0.0)
+    test_dataset = ECGGraphDataset(
+        segments=segments,
+        labels=labels,
+        edge_index=edge_index,
+        edge_weight=edge_weight,
+        normalize=True,
+    )
+
+    test_loader = DataLoader(test_dataset, batch_size=args.batch_size, shuffle=False)
+
+    # 3. Caricamento Modello e Pesi
+    print(f"--> Caricamento pesi modello da: {args.weights}")
+    model = ECG_GCN(
+        node_feat_dim=64,
+        hidden_dim=128,
+        num_classes=num_classes,
+        num_gnn_layers=2,
+        use_attention=False,
+        dropout=0.3,
+    ).to(device)
+
+    model.load_state_dict(torch.load(args.weights, map_location=device))
     model.eval()
-    X_t = torch.tensor(X, dtype=torch.float32)
-    if X_t.ndim == 2:
-        X_t = X_t.unsqueeze(1)
-    elif X_t.ndim != 3:
-        raise ValueError(f"Input non supportato: shape={tuple(X_t.shape)}")
-    if X_t.size(1) != 2:
-        raise ValueError(f"La rete si aspetta 2 derivazioni, ma l'input ne contiene {X_t.size(1)}")
-    N = X_t.size(0)
-    preds = []
-    probs = []
+
+    # 4. Inferenza sui singoli segmenti
+    print("--> Esecuzione inferenza sui segmenti...")
+    seg_predictions = []
+
     with torch.no_grad():
-        for i in range(0, N, batch_size):
-            xb = X_t[i : i + batch_size].to(device)
-            out = model(xb)
-            p = F.softmax(out, dim=1)
-            _, pr = torch.max(out, 1)
-            preds.extend(pr.cpu().tolist())
-            probs.extend(p.cpu().tolist())
-    return preds, probs
+        for batch in test_loader:
+            batch = batch.to(device)
+            out = model(batch)
+            preds = out.argmax(dim=1).cpu().numpy()
+            seg_predictions.extend(preds)
 
+    # 5. Raggruppamento predizioni per Registrazione
+    rec_preds_dict = {}
+    rec_gt_dict = {}
 
-def print_summary(labels: List[int], preds: List[int], probs: List[List[float]], paths: List[str]):
-    """Print overall accuracy, per-class accuracy and confusion matrix."""
-    N = len(labels)
-    if N == 0:
-        print("Nessun esempio da valutare.")
-        return
+    for rec_id, seg_pred, seg_gt in zip(recording_ids, seg_predictions, labels):
+        if rec_id not in rec_preds_dict:
+            rec_preds_dict[rec_id] = []
+            rec_gt_dict[rec_id] = seg_gt
+        rec_preds_dict[rec_id].append(seg_pred)
 
-    correct = sum(int(p == t) for p, t in zip(preds, labels))
-    acc = correct / N * 100
+    # 6. Aggregazione >50% a livello di Registrazione
+    rec_true, rec_pred, summary_df = predict_recordings(
+        rec_preds_dict, rec_gt_dict, threshold=0.50
+    )
+
+    # 7. Calcolo Metriche e Report
+    target_names = [idx_to_label[i] for i in range(num_classes)]
+
+    print("\n" + "=" * 60)
+    print(" RISULTATI A LIVELLO DI SINGOLA REGISTRAZIONE (>50% Majority Voting)")
     print("=" * 60)
-    print(f"Test su {N} esempi - Accuracy: {acc:.2f}% ({correct}/{N})")
-    print("-" * 60)
 
-    num_classes = len(CLASS_NAMES)
-    confusion = [[0] * num_classes for _ in range(num_classes)]
-    per_total = [0] * num_classes
-    per_correct = [0] * num_classes
-    for t, p in zip(labels, preds):
-        confusion[t][p] += 1
-        per_total[t] += 1
-        if t == p:
-            per_correct[t] += 1
+    rec_acc = (rec_true == rec_pred).mean() * 100
+    print(f"\nAccuratezza totale sulle Registrazioni: {rec_acc:.2f}%\n")
 
-    for cls in range(num_classes):
-        total = per_total[cls]
-        correct_c = per_correct[cls]
-        pct = (correct_c / total * 100) if total > 0 else 0.0
-        print(f"Classe {cls} ({CLASS_NAMES[cls]}): {total} esempi - Acc: {pct:.2f}%")
+    print("--- Classification Report ---")
+    print(
+        classification_report(
+            rec_true, rec_pred, target_names=target_names, digits=4, zero_division=0
+        )
+    )
 
-    print("-" * 60)
-    print("Matrice di confusione (righe=ground truth, colonne=predetti):")
-    for row in confusion:
-        print("\t".join(str(x) for x in row))
+    print("\n--- Matrice di Confusione ---")
+    cm = confusion_matrix(rec_true, rec_pred)
+    cm_df = pd.DataFrame(cm, index=target_names, columns=target_names)
+    print(cm_df)
 
-    # show some errors
-    print("-" * 60)
-    print("Esempi di errori (fino a 10):")
-    shown = 0
-    for rel, t, p, prob in zip(paths, labels, preds, probs):
-        if t != p and shown < 10:
-            conf = prob[p] * 100
-            print(f"{rel}: target={CLASS_NAMES[t]} pred={CLASS_NAMES[p]} conf={conf:.2f}%")
-            shown += 1
+    # Salvataggio del report CSV di dettaglio per le registrazioni
+    output_csv = "test_recordings_summary.csv"
+    summary_df["ground_truth_label"] = summary_df["ground_truth"].map(idx_to_label)
+    summary_df["predicted_label"] = summary_df["predicted"].map(idx_to_label)
+    summary_df.to_csv(output_csv, index=False)
+    print(f"\n--> Report di dettaglio salvato con successo in '{output_csv}'")
 
-
-def test_random_segments(num_samples: int = 100, target_length: int = 360, batch_size: int = 32, seed=None):
-    """Main: sample random rows, run inference and print metrics."""
-    csv_file = "data_prep/dataset/metadata.csv"
-    base_dir = "data_prep/dataset"
-    model_path = "best_ecg_model.pth"
-
-    device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
-
-    if not Path(csv_file).exists() or not Path(base_dir).exists():
-        print("Errore: dataset o metadata.csv non presenti. Rigenera il dataset prima di eseguire il test.")
-        return
-
-    X, labels, paths = sample_inputs(csv_file, base_dir, num_samples, target_length, seed=seed)
-    if len(labels) == 0:
-        print("Nessun segmento valido trovato tra le righe selezionate.")
-        return
-
-    try:
-        model = load_model(model_path, device)
-    except RuntimeError as exc:
-        print(exc)
-        return
-    preds, probs = evaluate(model, X, batch_size=batch_size)
-    print_summary(labels, preds, probs, paths)
-
-def test_last_patient():
-    """Test using all segments from the last patient in the metadata."""
-    csv_file = "data_prep/dataset/metadata.csv"
-    base_dir = "data_prep/dataset"
-    model_path = "top_accuracy_2L.pth"
-
-    device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
-
-    if not Path(csv_file).exists() or not Path(base_dir).exists():
-        print("Errore: dataset o metadata.csv non presenti. Rigenera il dataset prima di eseguire il test.")
-        return
-
-    df = pd.read_csv(csv_file)
-    df["patient_id"] = df["file_path"].apply(lambda x: x.split("/")[0])
-    last_patient = df["patient_id"].iloc[-1]
-    patient_rows = df[df["patient_id"] == last_patient].reset_index(drop=True)
-
-    inputs = []
-    labels = []
-    paths = []
-    base = Path(base_dir)
-    for _, row in patient_rows.iterrows():
-        rel = row["file_path"]
-        p = base / rel
-        if not p.exists():
-            continue
-        sig = np.load(p)
-        sig = pad_or_trim(sig, 360)
-        inputs.append(sig)
-        labels.append(int(row["label"]))
-        paths.append(rel)
-
-    if len(inputs) == 0:
-        print("Nessun segmento valido trovato per l'ultimo paziente.")
-        return
-
-    X = np.stack(inputs)
-    try:
-        model = load_model(model_path, device)
-    except RuntimeError as exc:
-        print(exc)
-        return
-    preds, probs = evaluate(model, X, batch_size=32)
-    print_summary(labels, preds, probs, paths)
 
 if __name__ == "__main__":
-    #test_random_segments(100)
-    test_last_patient()
+    main()

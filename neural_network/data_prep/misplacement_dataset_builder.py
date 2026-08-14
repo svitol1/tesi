@@ -6,15 +6,13 @@ rilevamento del malposizionamento degli elettrodi.
 
 REGOLE APPLICATE
 ----------------------------------
-1. La classe (normale / tipo di scambio) viene decisa UNA VOLTA per
-   ogni registrazione (ecg_id), non per singolo battito. Di conseguenza
-   tutti i battiti di una stessa registrazione condividono la stessa
-   etichetta: o sono tutti normali, o sono tutti trasformati con lo
-   stesso tipo di scambio.
+1. La classe (normale / tipo di scambio) viene decisa per SINGOLO
+    segmento, ma per ogni registrazione c'è un vincolo: i due segmenti
+    di ogni ecg_id devono ricevere due classi diverse.
 2. Per ogni battito viene salvata SOLO la versione corrispondente alla
-   classe assegnata alla registrazione: mai sia la versione originale
+    classe assegnata al segmento: mai sia la versione originale
    sia quella trasformata dello stesso segmento.
-3. L'assegnazione delle classi alle registrazioni è randomizzata con
+3. L'assegnazione delle classi ai segmenti è randomizzata con
    seed fisso e bilanciata tra le classi.
 
 USO
@@ -40,14 +38,18 @@ from lead_misplacement import apply_transform, MISPLACEMENT_TRANSFORMS
 FILENAME_DIGITS = 7
 
 
-def assign_classes_per_recording(ecg_ids: np.ndarray, classes: list,
-                                  weights: list, seed: int = 42) -> dict:
+def assign_classes_per_segment(index_df: pd.DataFrame, classes: list,
+                               weights: list, seed: int = 42) -> pd.Series:
     """
-    Assegna una classe a ciascuna registrazione (ecg_id), UNA volta sola.
-    Ritorna un dizionario {ecg_id: classe}.
+    Assegna una classe a ciascun segmento, imponendo classi diverse
+    all'interno della stessa registrazione.
 
     L'assegnazione è randomizzata ma riproducibile (seed fisso) e segue
     le proporzioni indicate in `weights` (normalizzati automaticamente).
+
+    Vincoli applicati:
+      - ogni ecg_id deve avere esattamente 2 segmenti;
+      - i 2 segmenti dello stesso ecg_id ricevono 2 classi diverse.
     """
     # crea un generatore random riproducibile con il seed fornito
     rng = np.random.default_rng(seed)
@@ -55,11 +57,25 @@ def assign_classes_per_recording(ecg_ids: np.ndarray, classes: list,
     # normalizza i pesi in modo che sommino a 1
     weights = weights / weights.sum()
 
-    unique_ids = np.unique(ecg_ids)
-    # estrae una classe per ogni ecg_id usando la distribuzione dei pesi
-    assigned = rng.choice(classes, size=len(unique_ids), p=weights)
-    # ritorna un dizionario che mappa ecg_id -> classe assegnata
-    return dict(zip(unique_ids, assigned))
+    labels = pd.Series(index=index_df.index, dtype=object)
+
+    for ecg_id, group_df in index_df.groupby("ecg_id"):
+        n_segments = len(group_df)
+        if n_segments != 2:
+            raise ValueError(
+                f"ecg_id={ecg_id} ha {n_segments} segmenti, ma ne sono attesi 2"
+            )
+        if n_segments > len(classes):
+            raise ValueError(
+                "Numero classi insufficiente per assegnare etichette distinte "
+                f"(ecg_id={ecg_id}, segmenti={n_segments}, classi={len(classes)})"
+            )
+
+        chosen = rng.choice(classes, size=n_segments, replace=False, p=weights)
+        ordered_idx = group_df.sort_values("beat_idx_in_record").index.to_numpy()
+        labels.loc[ordered_idx] = chosen
+
+    return labels
 
 
 def build_final_dataset(beats_index_csv: str, segments_dir: str, output_dir: str,
@@ -75,19 +91,19 @@ def build_final_dataset(beats_index_csv: str, segments_dir: str, output_dir: str
     out_segments_dir = os.path.join(output_dir, "segments")
     os.makedirs(out_segments_dir, exist_ok=True)
 
-    # assegna una classe a ogni registrazione (non a ogni battito)
-    ecg_id_to_class = assign_classes_per_recording(
-        index_df["ecg_id"].values, classes, class_weights, seed=seed
+    # assegna una classe a ogni segmento, forzando classi diverse per ecg_id
+    index_df["label"] = assign_classes_per_segment(
+        index_df=index_df,
+        classes=classes,
+        weights=class_weights,
+        seed=seed,
     )
-    # mappa l'etichetta assegnata a ciascun battito basandosi sull'ecg_id
-    index_df["label"] = index_df["ecg_id"].map(ecg_id_to_class)
 
-    # controllo di coerenza: ogni ecg_id deve avere UNA sola classe
+    # controllo di coerenza: ogni ecg_id deve avere esattamente DUE classi distinte
     n_labels_per_record = index_df.groupby("ecg_id")["label"].nunique()
-    # se una registrazione ha più etichette qualcosa è andato storto
-    assert (n_labels_per_record == 1).all(), (
-        "Trovate registrazioni con più di un'etichetta."
-        "'tutti i battiti di una registrazione devono avere la stessa classe'."
+    assert (n_labels_per_record == 2).all(), (
+        "Trovate registrazioni senza due etichette distinte. "
+        "Ogni ecg_id deve avere 2 segmenti con 2 classi diverse."
     )
 
     final_rows = []
@@ -117,14 +133,24 @@ def build_final_dataset(beats_index_csv: str, segments_dir: str, output_dir: str
     final_df.to_csv(final_csv_path, index=False)
 
     print("\nCompletato.")
-    print(f"Registrazioni totali : {len(ecg_id_to_class)}")
+    print(f"Registrazioni totali : {index_df['ecg_id'].nunique()}")
     print(f"Battiti totali : {len(final_df)}")
-    print("Distribuzione classi (per registrazione):")
-    # conta le classi assegnate per registrazione
-    class_counts = pd.Series(list(ecg_id_to_class.values())).value_counts()
+    print("Distribuzione classi (per segmento):")
+    # conta le classi assegnate per segmento
+    class_counts = final_df["label"].value_counts()
     # stampa il conteggio per ogni classe
     for cls, count in class_counts.items():
-        print(f"{cls:10s}: {count} registrazioni")
+        print(f"{cls:10s}: {count} segmenti")
+
+    print("Combinazioni classi per registrazione:")
+    pair_counts = (
+        final_df.groupby("ecg_id")["label"]
+        .apply(lambda s: " + ".join(sorted(s.tolist())))
+        .value_counts()
+    )
+    for pair, count in pair_counts.items():
+        print(f"{pair:20s}: {count} registrazioni")
+
     print(f"Cartella segmenti : {out_segments_dir}")
     print(f"Indice finale (CSV) : {final_csv_path}")
 
