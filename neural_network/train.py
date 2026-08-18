@@ -147,7 +147,7 @@ def main():
     unique_patients = np.unique(patient_ids)
     rng = np.random.default_rng(0)
     shuffled_patients = rng.permutation(unique_patients)
-    n_train_patients = max(1, int(0.8 * len(shuffled_patients)))
+    n_train_patients = max(1, int(0.80 * len(shuffled_patients)))
     train_patients = set(shuffled_patients[:n_train_patients])
 
     train_idx = np.where(np.isin(patient_ids, list(train_patients)))[0]
@@ -172,11 +172,11 @@ def main():
 
     model = ECG_GCN(
         node_feat_dim=64,
-        hidden_dim=128,
+        hidden_dim=64,
         num_classes=NUM_CLASSES,
-        num_gnn_layers=2,
+        num_gnn_layers=3,
         use_attention=False,
-        dropout=0.3,
+        dropout=0.3702772956090954,
     ).to(device)
 
     if load_old_weights:
@@ -192,7 +192,7 @@ def main():
         else:
             print(f"Checkpoint non trovato in {weights_path}, training da zero.")
 
-    optimizer = torch.optim.Adam(model.parameters(), lr=1e-3, weight_decay=1e-5)
+    optimizer = torch.optim.Adam(model.parameters(), lr=0.000800297866783777, weight_decay=1.001847436630377e-05)
 
     criterion = nn.CrossEntropyLoss()
 

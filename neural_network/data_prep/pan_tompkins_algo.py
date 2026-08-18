@@ -98,7 +98,7 @@ def _find_r_peaks(integrated: np.ndarray, fs: float) -> np.ndarray:
 
 
 def _refine_peaks(signal: np.ndarray, peaks: np.ndarray, window: int = 10) -> np.ndarray:
-	"""Raffinamento dei picchi: ricerca del massimo nel segnale originale.
+	"""Raffinamento dei picchi: ricerca del massimo assoluto nel segnale originale.
 
 	Ricerca in una finestra di ±window campioni attorno a ogni picco rilevato.
 	"""
@@ -106,8 +106,8 @@ def _refine_peaks(signal: np.ndarray, peaks: np.ndarray, window: int = 10) -> np
 	for p in peaks:
 		start = max(0, p - window)
 		end = min(len(signal), p + window)
-		local_max = np.argmax(signal[start:end]) + start
-		refined.append(local_max)
+		local_extreme = np.argmax(np.abs(signal[start:end])) + start
+		refined.append(local_extreme)
 	return np.asarray(refined, dtype=int)
 
 

@@ -83,7 +83,41 @@ def load_raw_signal(ptbxl_root: str, row: pd.Series, sampling_rate: int) -> np.n
 # --------------------------------------------------------------------------
 # 2. Rilevamento picchi R
 # --------------------------------------------------------------------------
+def filter_r_peaks_by_v1_v5_window(r_peaks_v1: np.ndarray,
+                                  r_peaks_v5: np.ndarray,
+                                  fs: int,
+                                  tolerance_ms: float = 50.0) -> np.ndarray:
+    """
+    Accetta un picco R solo se è stato rilevato anche nell'altra derivazione
+    all'interno di una finestra temporale di +-50 ms. In questo modo si
+    scartano picchi isolati in V1 o V5 che non hanno un corrispondente
+    nella derivazione opposta.
+    """
+    if len(r_peaks_v1) == 0 or len(r_peaks_v5) == 0:
+        return np.array([], dtype=int)
 
+    tolerance_samples = max(1, int(round(tolerance_ms / 1000.0 * fs)))
+    r_peaks_v1 = np.asarray(r_peaks_v1, dtype=int)
+    r_peaks_v5 = np.asarray(r_peaks_v5, dtype=int)
+
+    paired_v1 = []
+    used_v5 = set()
+
+    for peak_v1 in r_peaks_v1:
+        candidates = np.where(np.abs(r_peaks_v5 - peak_v1) <= tolerance_samples)[0]
+        if len(candidates) == 0:
+            continue
+
+        # tra i candidati, scegli quello più vicino a peak_v1
+        nearest_idx = int(candidates[np.argmin(np.abs(r_peaks_v5[candidates] - peak_v1))])
+        if nearest_idx in used_v5:
+            continue
+
+        used_v5.add(nearest_idx)
+        peak_v5 = r_peaks_v5[nearest_idx]
+        paired_v1.append(int(round((peak_v1 + peak_v5) / 2.0)))
+
+    return np.unique(np.asarray(paired_v1, dtype=int))
 
 def detect_r_peaks_v1_v5_average(signal_12lead: np.ndarray, fs: int) -> np.ndarray:
     """
@@ -102,15 +136,8 @@ def detect_r_peaks_v1_v5_average(signal_12lead: np.ndarray, fs: int) -> np.ndarr
 
         if len(r_peaks_v1) == 0 or len(r_peaks_v5) == 0:
             return np.array([], dtype=int)
-        # takes the smaller number of detected peaks between the two leads
-        # to avoid index errors
-        n_common = min(len(r_peaks_v1), len(r_peaks_v5))
-        # average the positions of the R peaks from both leads
-        avg_peaks = np.round(
-            (r_peaks_v1[:n_common] + r_peaks_v5[:n_common]) / 2.0
-        ).astype(int)
 
-        return np.unique(avg_peaks)
+        return filter_r_peaks_by_v1_v5_window(r_peaks_v1, r_peaks_v5, fs, tolerance_ms=50.0)
     except Exception:
         return np.array([], dtype=int)
 

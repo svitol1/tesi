@@ -46,7 +46,7 @@ def parse_args():
     return parser.parse_args()
 
 
-def load_test_data(data_root: str, expected_len: int = 500):
+def load_test_data(data_root: str, label_to_idx: dict, expected_len: int = 500):
     """
     Carica i segmenti di test e mantieni la traccia delle registrazioni (patient_id/recording_id).
     """
@@ -65,9 +65,11 @@ def load_test_data(data_root: str, expected_len: int = 500):
     if missing:
         raise ValueError(f"Colonne mancanti nel CSV: {sorted(missing)}")
 
+    unknown_labels = set(df["label"].astype(str).unique()) - set(label_to_idx.keys())
+    if unknown_labels:
+        raise ValueError(f"Etichette nel CSV non presenti in label_to_idx: {sorted(unknown_labels)}")
+
     # Mappatura etichette
-    label_names = sorted(df["label"].astype(str).unique().tolist())
-    label_to_idx = {name: i for i, name in enumerate(label_names)}
     idx_to_label = {i: name for name, i in label_to_idx.items()}
 
     segments = []
@@ -146,14 +148,16 @@ def main():
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
     print(f"--> Utilizzo device: {device}")
 
-    # 1. Caricamento dati di test
+    # Deve corrispondere alla mappatura usata in training
+    LABEL_TO_IDX = {"normal": 0, "RA_LA": 1}
+
     print(f"--> Caricamento dataset di test da: {args.data_dir}")
     SEGMENT_LEN = 500
     segments, labels, recording_ids, label_to_idx, idx_to_label = load_test_data(
-        args.data_dir, expected_len=SEGMENT_LEN
+        args.data_dir, LABEL_TO_IDX, expected_len=SEGMENT_LEN
     )
 
-    num_classes = len(label_to_idx)
+    num_classes = len(LABEL_TO_IDX)
     print(f"--> Caricati {len(segments)} segmenti totali appartenenti a {len(set(recording_ids))} registrazioni.")
     print(f"--> Classi individuate ({num_classes}): {label_to_idx}")
 
@@ -173,11 +177,11 @@ def main():
     print(f"--> Caricamento pesi modello da: {args.weights}")
     model = ECG_GCN(
         node_feat_dim=64,
-        hidden_dim=128,
+        hidden_dim=64,
         num_classes=num_classes,
-        num_gnn_layers=2,
+        num_gnn_layers=3,
         use_attention=False,
-        dropout=0.3,
+        dropout=0.3702772956090954,
     ).to(device)
 
     model.load_state_dict(torch.load(args.weights, map_location=device))

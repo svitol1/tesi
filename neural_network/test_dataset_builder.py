@@ -124,7 +124,7 @@ def build_georgia_index(georgia_root: str) -> pd.DataFrame:
             "Controlla il percorso (dovrebbe contenere le cartelle g1..g11)."
         )
 
-    # find_hea_files ritorna già i path in ordine alfabetico (glob + sorted),
+    # find_hea_files ritorna già i path in ordine alfabetico,
     # quindi l'ordine delle righe qui rispecchia l'ordine su disco: nessun
     # mescolamento, nessuno split, dato che l'intero dataset è solo test.
     rows = [parse_hea_header(p) for p in tqdm(hea_files, desc="Lettura header .hea")]
@@ -170,14 +170,49 @@ def load_raw_signal(row: pd.Series) -> np.ndarray:
 # 3. Rilevamento picchi R (identico a PTB-XL)
 # --------------------------------------------------------------------------
 
+def filter_r_peaks_by_v1_v5_window(r_peaks_v1: np.ndarray,
+                                  r_peaks_v5: np.ndarray,
+                                  fs: int,
+                                  tolerance_ms: float = 50.0) -> np.ndarray:
+    """
+    Accetta un picco R solo se è stato rilevato anche nell'altra derivazione
+    all'interno di una finestra temporale di +-50 ms. In questo modo si
+    scartano picchi isolati in V1 o V5 che non hanno un corrispondente
+    nella derivazione opposta.
+    """
+    if len(r_peaks_v1) == 0 or len(r_peaks_v5) == 0:
+        return np.array([], dtype=int)
+
+    tolerance_samples = max(1, int(round(tolerance_ms / 1000.0 * fs)))
+    r_peaks_v1 = np.asarray(r_peaks_v1, dtype=int)
+    r_peaks_v5 = np.asarray(r_peaks_v5, dtype=int)
+
+    paired_v1 = []
+    used_v5 = set()
+
+    for peak_v1 in r_peaks_v1:
+        candidates = np.where(np.abs(r_peaks_v5 - peak_v1) <= tolerance_samples)[0]
+        if len(candidates) == 0:
+            continue
+
+        nearest_idx = int(candidates[np.argmin(np.abs(r_peaks_v5[candidates] - peak_v1))])
+        if nearest_idx in used_v5:
+            continue
+
+        used_v5.add(nearest_idx)
+        peak_v5 = r_peaks_v5[nearest_idx]
+        paired_v1.append(int(round((peak_v1 + peak_v5) / 2.0)))
+
+    return np.unique(np.asarray(paired_v1, dtype=int))
+
 
 def detect_r_peaks_v1_v5_average(signal_12lead: np.ndarray, fs: int) -> np.ndarray:
     try:
         v1_idx = LEAD_NAMES.index("V1")
         v5_idx = LEAD_NAMES.index("V5")
 
-        v1_signal = preprocess_ecg(signal_12lead[:, v1_idx], fs)
-        v5_signal = preprocess_ecg(signal_12lead[:, v5_idx], fs)
+        v1_signal = preprocess_ecg(signal_12lead[:, v1_idx], fs, notch_freq=60.0)
+        v5_signal = preprocess_ecg(signal_12lead[:, v5_idx], fs, notch_freq=60.0)
 
         r_peaks_v1 = detect_r_peaks_pan_tompkins(v1_signal, fs)
         r_peaks_v5 = detect_r_peaks_pan_tompkins(v5_signal, fs)
@@ -185,12 +220,7 @@ def detect_r_peaks_v1_v5_average(signal_12lead: np.ndarray, fs: int) -> np.ndarr
         if len(r_peaks_v1) == 0 or len(r_peaks_v5) == 0:
             return np.array([], dtype=int)
 
-        n_common = min(len(r_peaks_v1), len(r_peaks_v5))
-        avg_peaks = np.round(
-            (r_peaks_v1[:n_common] + r_peaks_v5[:n_common]) / 2.0
-        ).astype(int)
-
-        return np.unique(avg_peaks)
+        return filter_r_peaks_by_v1_v5_window(r_peaks_v1, r_peaks_v5, fs, tolerance_ms=50.0)
     except Exception:
         return np.array([], dtype=int)
 
@@ -237,7 +267,7 @@ def build_dataset(georgia_root: str, output_dir: str,
     os.makedirs(segments_dir, exist_ok=True)
 
     # se ho già un indice salvato da una run precedente lo riuso, altrimenti
-    # lo costruisco leggendo tutti gli .hea (operazione lenta solo la prima volta)
+    # lo costruisco leggendo tutti i .hea
     if index_csv is not None and os.path.exists(index_csv):
         meta_df = pd.read_csv(index_csv, index_col="ecg_id")
     else:
@@ -262,20 +292,15 @@ def build_dataset(georgia_root: str, output_dir: str,
 
         r_peaks = detect_r_peaks_v1_v5_average(signal, fs)
         if len(r_peaks) < 5:
-            skipped_records.append((ecg_id, "picchi_R_insufficienti_per_3o_5o"))
+            skipped_records.append((ecg_id, "picchi_R_insufficienti_per_5o"))
             continue
 
-        selected_peaks = np.array([r_peaks[2], r_peaks[4]], dtype=int)
-
-        beats, used_peaks = segment_beats(signal, selected_peaks, fs, pre_ms, post_ms)
-        if beats.shape[0] != 2:
-            skipped_records.append((ecg_id, "3o_o_5o_battito_fuori_bordo"))
-            continue
+        beats, used_peaks = segment_beats(signal, r_peaks, fs, pre_ms, post_ms)
 
         for local_idx, r_sample in enumerate(used_peaks):
             filename = f"seg{global_beat_counter:0{FILENAME_DIGITS}d}.npy"
             filepath = os.path.join(segments_dir, filename)
-            np.save(filepath, beats[local_idx])
+            np.save(filepath, beats[local_idx].T)
 
             index_rows.append({
                 "filename": filename,
@@ -284,7 +309,7 @@ def build_dataset(georgia_root: str, output_dir: str,
                 "beat_idx_in_record": local_idx,
                 "r_peak_sample": int(r_sample),
                 "split": "test",
-                "label": "correct",
+                "label": "normal",
                 "sampling_rate": fs,
             })
             global_beat_counter += 1
