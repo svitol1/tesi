@@ -1,8 +1,0 @@
-best_val_acc: 0.6492
-use_attention: False  (fissato, non incluso nella ricerca)
-hidden_dim: 256
-num_gnn_layers: 2
-dropout: 0.1001128635153988
-lr: 0.0026733117144057813
-weight_decay: 2.0664575950234256e-06
-batch_size: 32

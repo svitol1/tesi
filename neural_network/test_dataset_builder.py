@@ -1,8 +1,7 @@
 """
 Preprocessing del database Georgia (PhysioNet/CinC Challenge 2020) per creare
 un dataset di singoli battiti segmentati, nello stesso formato usato per
-PTB-XL, da usare come TEST SET per un modello CNN/GCN che rileva il
-posizionamento errato degli elettrodi nell'ECG a 12 derivazioni.
+PTB-XL, da usare come TEST SET.
 
 Differenze principali rispetto a PTB-XL
 ----------------------------------------
@@ -25,7 +24,7 @@ viene salvato con un contatore progressivo che rispecchia quell'ordine.
 
 Uso
 ---
-Prima (opzionale) costruisco solo l'indice dei metadati leggendo tutti gli
+Prima costruisco solo l'indice dei metadati leggendo tutti gli
 .hea, per ispezionarlo prima di lanciare tutta la segmentazione:
     python georgia_preprocessing.py --georgia_root .../training/georgia \
         --output_dir .../out_georgia --build_index_only
