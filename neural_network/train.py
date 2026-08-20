@@ -15,7 +15,7 @@ from pathlib import Path
 from torch_geometric.loader import DataLoader
 
 from model import ECG_GCN
-from dataset import ECGGraphDataset, build_ecg_graph_topology
+from dataset import ECGGraphDataset, build_signed_ecg_graph_topology
 
 
 def ask_yes_no(prompt: str, default: bool = False) -> bool:
@@ -130,16 +130,15 @@ def main():
     NUM_CLASSES = len(label_to_idx)
 
     # Generazione topologia basata sui vettori 3D delle derivazioni
-    edge_index, edge_weight = build_ecg_graph_topology(
-        mode="vector_geometric",
-        threshold=0.0
-    )
+    edge_index_pos, edge_weight_pos, edge_index_neg, edge_weight_neg = build_signed_ecg_graph_topology()
 
     dataset = ECGGraphDataset(
         segments=segments,
         labels=labels,
-        edge_index=edge_index,
-        edge_weight=edge_weight,
+        edge_index_pos=edge_index_pos,
+        edge_weight_pos=edge_weight_pos,
+        edge_index_neg=edge_index_neg,
+        edge_weight_neg=edge_weight_neg,
         normalize=True
     )
 
@@ -172,15 +171,15 @@ def main():
 
     model = ECG_GCN(
         node_feat_dim=64,
-        hidden_dim=64,
+        hidden_dim=256,
         num_classes=NUM_CLASSES,
-        num_gnn_layers=3,
+        num_gnn_layers=2,
         use_attention=False,
-        dropout=0.3702772956090954,
+        dropout=0.14841847955286488,
     ).to(device)
 
     if load_old_weights:
-        weights_path = Path("best_weights.pt")
+        weights_path = Path("best_2class.pt")
         if weights_path.exists():
             try:
                 state_dict = torch.load(weights_path, map_location=device)
@@ -192,12 +191,12 @@ def main():
         else:
             print(f"Checkpoint non trovato in {weights_path}, training da zero.")
 
-    optimizer = torch.optim.Adam(model.parameters(), lr=0.000800297866783777, weight_decay=1.001847436630377e-05)
+    optimizer = torch.optim.Adam(model.parameters(), lr=0.00033386212885733586, weight_decay=4.453505412047885e-05)
 
     criterion = nn.CrossEntropyLoss()
 
     scheduler = torch.optim.lr_scheduler.ReduceLROnPlateau(
-        optimizer, mode='min', factor=0.5, patience=3
+        optimizer, mode='min', factor=0.4, patience=3
     )
 
     # --------------------------------------------------------------------
@@ -223,11 +222,11 @@ def main():
                 total += y.size(0)
         return total_loss / total, correct / total
 
-    EPOCHS = 15
+    EPOCHS = 25
     for epoch in range(1, EPOCHS + 1):
         train_loss, train_acc = run_epoch(train_loader, train=True)
         val_loss, val_acc = run_epoch(val_loader, train=False)
-        scheduler.step(val_loss)
+        #scheduler.step(val_loss)
         print(f"Epoch {epoch:02d} | "
               f"train_loss={train_loss:.4f} train_acc={train_acc:.4f} | "
               f"val_loss={val_loss:.4f} val_acc={val_acc:.4f}")

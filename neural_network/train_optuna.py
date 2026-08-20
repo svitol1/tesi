@@ -19,7 +19,7 @@ from optuna.trial import TrialState
 from torch_geometric.loader import DataLoader
 
 from model import ECG_GCN
-from dataset import ECGGraphDataset, build_ecg_graph_topology
+from dataset import ECGGraphDataset, build_signed_ecg_graph_topology
 from train import load_misplacement_data  # riuso il loader già definito in train.py
 
 
@@ -41,16 +41,15 @@ def build_datasets():
     )
     num_classes = len(label_to_idx)
 
-    edge_index, edge_weight = build_ecg_graph_topology(
-        mode="vector_geometric",
-        threshold=0.0,
-    )
+    edge_index_pos, edge_weight_pos, edge_index_neg, edge_weight_neg = build_signed_ecg_graph_topology()
 
     dataset = ECGGraphDataset(
         segments=segments,
         labels=labels,
-        edge_index=edge_index,
-        edge_weight=edge_weight,
+        edge_index_pos=edge_index_pos,
+        edge_weight_pos=edge_weight_pos,
+        edge_index_neg=edge_index_neg,
+        edge_weight_neg=edge_weight_neg,
         normalize=True,
     )
 
@@ -86,7 +85,7 @@ def make_objective(train_dataset, val_dataset, num_classes, device):
 
         # -------------------- spazio di ricerca --------------------
         hidden_dim = trial.suggest_categorical("hidden_dim", [64, 128, 256])
-        num_gnn_layers = trial.suggest_int("num_gnn_layers", 1, 4)
+        num_gnn_layers = trial.suggest_int("num_gnn_layers", 1, 3)
         dropout = trial.suggest_float("dropout", 0.1, 0.5)
         lr = trial.suggest_float("lr", 1e-4, 1e-2, log=True)
         weight_decay = trial.suggest_float("weight_decay", 1e-6, 1e-3, log=True)

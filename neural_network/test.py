@@ -20,7 +20,7 @@ import torch
 from sklearn.metrics import classification_report, confusion_matrix
 from torch_geometric.loader import DataLoader
 
-from dataset import ECGGraphDataset, build_ecg_graph_topology
+from dataset import ECGGraphDataset, build_signed_ecg_graph_topology
 from model import ECG_GCN
 
 
@@ -149,7 +149,7 @@ def main():
     print(f"--> Utilizzo device: {device}")
 
     # Deve corrispondere alla mappatura usata in training
-    LABEL_TO_IDX = {"normal": 0, "RA_LA": 1}
+    LABEL_TO_IDX = {"normal": 0, "V1_V2": 1}
 
     print(f"--> Caricamento dataset di test da: {args.data_dir}")
     SEGMENT_LEN = 500
@@ -162,12 +162,14 @@ def main():
     print(f"--> Classi individuate ({num_classes}): {label_to_idx}")
 
     # 2. Topologia del Grafo Vettoriale e Dataset PyG
-    edge_index, edge_weight = build_ecg_graph_topology(mode="vector_geometric", threshold=0.0)
+    edge_index_pos, edge_weight_pos, edge_index_neg, edge_weight_neg = build_signed_ecg_graph_topology()
     test_dataset = ECGGraphDataset(
         segments=segments,
         labels=labels,
-        edge_index=edge_index,
-        edge_weight=edge_weight,
+        edge_index_pos=edge_index_pos,
+        edge_weight_pos=edge_weight_pos,
+        edge_index_neg=edge_index_neg,
+        edge_weight_neg=edge_weight_neg,
         normalize=True,
     )
 
@@ -177,11 +179,11 @@ def main():
     print(f"--> Caricamento pesi modello da: {args.weights}")
     model = ECG_GCN(
         node_feat_dim=64,
-        hidden_dim=64,
+        hidden_dim=256,
         num_classes=num_classes,
-        num_gnn_layers=3,
+        num_gnn_layers=2,
         use_attention=False,
-        dropout=0.3702772956090954,
+        dropout=0.14841847955286488,
     ).to(device)
 
     model.load_state_dict(torch.load(args.weights, map_location=device))

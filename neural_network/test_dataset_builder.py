@@ -50,6 +50,7 @@ LEAD_NAMES = ["I", "II", "III", "AVR", "AVL", "AVF",
               "V1", "V2", "V3", "V4", "V5", "V6"]
 
 FILENAME_DIGITS = 6
+TARGET_SEGMENT_SAMPLES = 500
 
 
 # --------------------------------------------------------------------------
@@ -230,11 +231,12 @@ def detect_r_peaks_v1_v5_average(signal_12lead: np.ndarray, fs: int) -> np.ndarr
 
 
 def segment_beats(signal_12lead: np.ndarray, r_peaks: np.ndarray, fs: int,
-                   pre_ms: float = 400.0, post_ms: float = 600.0):
+                   pre_ms: float = 400.0, post_ms: float = 500.0,
+                   target_samples: int = TARGET_SEGMENT_SAMPLES):
     n_samples = signal_12lead.shape[0]
     pre_samples = int(round(pre_ms / 1000.0 * fs))
     post_samples = int(round(post_ms / 1000.0 * fs))
-    window_len = pre_samples + post_samples
+    base_window_len = pre_samples + post_samples
 
     beats = []
     used_peaks = []
@@ -243,11 +245,23 @@ def segment_beats(signal_12lead: np.ndarray, r_peaks: np.ndarray, fs: int,
         end = r + post_samples
         if start < 0 or end > n_samples:
             continue
-        beats.append(signal_12lead[start:end, :])
+
+        beat = signal_12lead[start:end, :]
+
+        # Con post_ms=500 ms a 500 Hz otteniamo 450 campioni (400+500 ms);
+        # qui aggiungiamo zeri in coda per avere sempre 500 campioni.
+        if beat.shape[0] < target_samples:
+            pad_len = target_samples - beat.shape[0]
+            pad = np.zeros((pad_len, beat.shape[1]), dtype=beat.dtype)
+            beat = np.concatenate([beat, pad], axis=0)
+        elif beat.shape[0] > target_samples:
+            beat = beat[:target_samples, :]
+
+        beats.append(beat)
         used_peaks.append(r)
 
     if len(beats) == 0:
-        return (np.empty((0, window_len, 12), dtype=np.float32),
+        return (np.empty((0, target_samples, 12), dtype=np.float32),
                 np.array([], dtype=int))
 
     return np.stack(beats).astype(np.float32), np.array(used_peaks, dtype=int)
@@ -259,7 +273,7 @@ def segment_beats(signal_12lead: np.ndarray, r_peaks: np.ndarray, fs: int,
 
 
 def build_dataset(georgia_root: str, output_dir: str,
-                   pre_ms: float = 400.0, post_ms: float = 600.0,
+                   pre_ms: float = 400.0, post_ms: float = 500.0,
                    limit: int = None, index_csv: str = None):
     os.makedirs(output_dir, exist_ok=True)
     segments_dir = os.path.join(output_dir, "segments")
@@ -345,7 +359,7 @@ def main():
                          help="Cartella dove salvare segments/, beats_index.csv "
                               "e georgia_metadata.csv")
     parser.add_argument("--pre_ms", type=float, default=400.0)
-    parser.add_argument("--post_ms", type=float, default=600.0)
+    parser.add_argument("--post_ms", type=float, default=500.0)
     parser.add_argument("--limit", type=int, default=None,
                          help="Solo per debug: processa solo le prime N registrazioni")
     parser.add_argument("--build_index_only", action="store_true",
