@@ -17,6 +17,7 @@ from torch_geometric.loader import DataLoader
 from model import ECG_GCN
 from dataset import ECGGraphDataset, build_signed_ecg_graph_topology
 
+WEIGHTS_PATH = Path("ecg_gcn_weights.pt")
 
 def ask_yes_no(prompt: str, default: bool = False) -> bool:
     suffix = " [Y/n]: " if default else " [y/N]: "
@@ -50,7 +51,7 @@ def load_misplacement_data(
         raise FileNotFoundError(f"Cartella segmenti non trovata: {segments_dir}")
 
     df = pd.read_csv(index_path)
-    required_cols = {"filename", "label", "patient_id"}
+    required_cols = {"filename", "label", "strat_fold"}
     missing = required_cols - set(df.columns)
     if missing:
         raise ValueError(f"Colonne mancanti nel CSV: {sorted(missing)}")
@@ -60,7 +61,7 @@ def load_misplacement_data(
 
     segments = []
     labels = []
-    patient_ids = []
+    strat_folds = []
     missing_files = 0
 
     for row in df.itertuples(index=False):
@@ -92,7 +93,9 @@ def load_misplacement_data(
 
         segments.append(seg)
         labels.append(label_to_idx[str(row.label)])
-        patient_ids.append(row.patient_id)
+        if pd.isna(row.strat_fold):
+            raise ValueError(f"strat_fold mancante per segmento {row.filename}")
+        strat_folds.append(int(row.strat_fold))
 
     if not segments:
         raise RuntimeError("Nessun segmento valido caricato dal dataset")
@@ -102,12 +105,34 @@ def load_misplacement_data(
 
     segments = np.stack(segments, axis=0)
     labels = np.asarray(labels, dtype=np.int64)
-    patient_ids = np.asarray(patient_ids)
+    strat_folds = np.asarray(strat_folds, dtype=np.int64)
 
     print(f"Segmenti caricati: {segments.shape[0]} | shape singolo segmento: {segments.shape[1:]}")
     print(f"Classi ({len(label_names)}): {label_to_idx}")
+    print(f"Strat folds trovati: {sorted(np.unique(strat_folds).tolist())}")
 
-    return segments, labels, patient_ids, label_to_idx
+    return segments, labels, strat_folds, label_to_idx
+
+
+def build_ptbxl_splits_from_strat_fold(strat_folds: np.ndarray):
+    """Create train/val/test indices from PTB-XL stratified folds.
+
+    Convention used in PTB-XL:
+    - train: folds 1..8
+    - val: fold 9
+    - test: fold 10
+    """
+    train_idx = np.where(np.isin(strat_folds, np.arange(1, 9)))[0]
+    val_idx = np.where(strat_folds == 9)[0]
+    test_idx = np.where(strat_folds == 10)[0]
+
+    if len(train_idx) == 0 or len(val_idx) == 0 or len(test_idx) == 0:
+        raise RuntimeError(
+            "Split train/val/test non valido da strat_fold: "
+            f"train={len(train_idx)}, val={len(val_idx)}, test={len(test_idx)}"
+        )
+
+    return train_idx, val_idx, test_idx
 
 
 def main():
@@ -115,7 +140,7 @@ def main():
     np.random.seed(0)
 
     load_old_weights = ask_yes_no(
-        "Vuoi caricare pesi precedenti da best_weights.pt?",
+        f"Vuoi caricare pesi precedenti da {WEIGHTS_PATH}?",
         default=False,
     )
 
@@ -123,7 +148,7 @@ def main():
     # 1) Dati
     # --------------------------------------------------------------------
     SEGMENT_LEN = 500      # 400ms pre + 600ms post picco R = 1 secondo a 500 Hz
-    segments, labels, patient_ids, label_to_idx = load_misplacement_data(
+    segments, labels, strat_folds, label_to_idx = load_misplacement_data(
         dataset_root="data_prep/misplacement_dataset",
         expected_len=SEGMENT_LEN,
     )
@@ -142,26 +167,22 @@ def main():
         normalize=True
     )
 
-    # Split per Paziente (per evitare Data Leakage)
-    unique_patients = np.unique(patient_ids)
-    rng = np.random.default_rng(0)
-    shuffled_patients = rng.permutation(unique_patients)
-    n_train_patients = max(1, int(0.80 * len(shuffled_patients)))
-    train_patients = set(shuffled_patients[:n_train_patients])
-
-    train_idx = np.where(np.isin(patient_ids, list(train_patients)))[0]
-    val_idx = np.where(~np.isin(patient_ids, list(train_patients)))[0]
-
-    if len(train_idx) == 0 or len(val_idx) == 0:
-        raise RuntimeError("Split train/val non valido: uno dei due insiemi è vuoto")
+    # Split standard PTB-XL basato su strat_fold.
+    train_idx, val_idx, test_idx = build_ptbxl_splits_from_strat_fold(strat_folds)
 
     train_dataset = dataset[train_idx.tolist()]
     val_dataset = dataset[val_idx.tolist()]
+    test_dataset = dataset[test_idx.tolist()]
 
-    print(f"Train segments: {len(train_idx)} | Val segments: {len(val_idx)}")
+    print(
+        f"Train segments: {len(train_idx)} | "
+        f"Val segments: {len(val_idx)} | "
+        f"Test segments: {len(test_idx)}"
+    )
 
     train_loader = DataLoader(train_dataset, batch_size=32, shuffle=True)
     val_loader = DataLoader(val_dataset, batch_size=32, shuffle=False)
+    test_loader = DataLoader(test_dataset, batch_size=32, shuffle=False)
 
     # --------------------------------------------------------------------
     # 2) Modello, ottimizzatore, loss
@@ -175,11 +196,11 @@ def main():
         num_classes=NUM_CLASSES,
         num_gnn_layers=2,
         use_attention=False,
-        dropout=0.14841847955286488,
+        dropout=0.15,
     ).to(device)
 
     if load_old_weights:
-        weights_path = Path("best_2class.pt")
+        weights_path = WEIGHTS_PATH
         if weights_path.exists():
             try:
                 state_dict = torch.load(weights_path, map_location=device)
@@ -191,17 +212,16 @@ def main():
         else:
             print(f"Checkpoint non trovato in {weights_path}, training da zero.")
 
-    optimizer = torch.optim.Adam(model.parameters(), lr=0.00033386212885733586, weight_decay=4.453505412047885e-05)
+    optimizer = torch.optim.Adam(model.parameters(), lr=0.000334, weight_decay=4.4535e-05)
 
     criterion = nn.CrossEntropyLoss()
 
     scheduler = torch.optim.lr_scheduler.ReduceLROnPlateau(
-        optimizer, mode='min', factor=0.4, patience=3
+        optimizer, mode='min', factor=0.3, patience=3
     )
 
-    # --------------------------------------------------------------------
-    # 3) Training loop
-    # --------------------------------------------------------------------
+    # Funzione unica per train/val/test: deve essere disponibile
+    # anche quando il training viene saltato.
     def run_epoch(loader, train: bool):
         model.train() if train else model.eval()
         total_loss, correct, total = 0.0, 0, 0
@@ -222,20 +242,54 @@ def main():
                 total += y.size(0)
         return total_loss / total, correct / total
 
-    EPOCHS = 25
-    for epoch in range(1, EPOCHS + 1):
-        train_loss, train_acc = run_epoch(train_loader, train=True)
-        val_loss, val_acc = run_epoch(val_loader, train=False)
-        #scheduler.step(val_loss)
-        print(f"Epoch {epoch:02d} | "
-              f"train_loss={train_loss:.4f} train_acc={train_acc:.4f} | "
-              f"val_loss={val_loss:.4f} val_acc={val_acc:.4f}")
+    # --------------------------------------------------------------------
+    # 3) Training loop
+    # --------------------------------------------------------------------
+    run_training = ask_yes_no("Vuoi eseguire il training del modello?", default=True)
+    if run_training:
+        EPOCHS = 25
+        for epoch in range(1, EPOCHS + 1):
+            train_loss, train_acc = run_epoch(train_loader, train=True)
+            val_loss, val_acc = run_epoch(val_loader, train=False)
+            #scheduler.step(val_loss)
+            print(f"Epoch {epoch:02d} | "
+                  f"train_loss={train_loss:.4f} train_acc={train_acc:.4f} | "
+                  f"val_loss={val_loss:.4f} val_acc={val_acc:.4f}")
+
+        # --------------------------------------------------------------------
+        # 4) Salvataggio pesi
+        # --------------------------------------------------------------------
+        torch.save(model.state_dict(), "ecg_gcn_weights.pt")
+        print("Pesi salvati in ecg_gcn_weights.pt")
 
     # --------------------------------------------------------------------
-    # 4) Salvataggio pesi
+    # 5) Test opzionale
     # --------------------------------------------------------------------
-    torch.save(model.state_dict(), "ecg_gcn_weights.pt")
-    print("Pesi salvati in ecg_gcn_weights.pt")
+    run_test = ask_yes_no("vuoi testare il modello?", default=True)
+    if run_test:
+        if not run_training and not load_old_weights:
+            # Se non si allena e non si sono caricati pesi, proviamo a
+            # caricare automaticamente l'ultimo checkpoint disponibile.
+            if WEIGHTS_PATH.exists():
+                try:
+                    state_dict = torch.load(WEIGHTS_PATH, map_location=device)
+                    model.load_state_dict(state_dict)
+                    print(f"Pesi caricati da {WEIGHTS_PATH} per il test.")
+                except Exception as exc:
+                    print(f"Impossibile caricare i pesi da {WEIGHTS_PATH}: {exc}")
+                    print("Test eseguito con pesi correnti del modello.")
+            else:
+                print(
+                    f"Checkpoint {WEIGHTS_PATH} non trovato: "
+                    "test con modello non addestrato."
+                )
+
+        test_loss, test_acc = run_epoch(test_loader, train=False)
+        print(
+            f"Test results | test_loss={test_loss:.4f} test_acc={test_acc:.4f}"
+        )
+    else:
+        print("Test saltato su richiesta utente.")
 
 
 if __name__ == "__main__":
