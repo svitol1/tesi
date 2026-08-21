@@ -211,11 +211,8 @@ def detect_r_peaks_v1_v5_average(signal_12lead: np.ndarray, fs: int) -> np.ndarr
         v1_idx = LEAD_NAMES.index("V1")
         v5_idx = LEAD_NAMES.index("V5")
 
-        v1_signal = preprocess_ecg(signal_12lead[:, v1_idx], fs, notch_freq=60.0)
-        v5_signal = preprocess_ecg(signal_12lead[:, v5_idx], fs, notch_freq=60.0)
-
-        r_peaks_v1 = detect_r_peaks_pan_tompkins(v1_signal, fs)
-        r_peaks_v5 = detect_r_peaks_pan_tompkins(v5_signal, fs)
+        r_peaks_v1 = detect_r_peaks_pan_tompkins(signal_12lead[:, v1_idx], fs)
+        r_peaks_v5 = detect_r_peaks_pan_tompkins(signal_12lead[:, v5_idx], fs)
 
         if len(r_peaks_v1) == 0 or len(r_peaks_v5) == 0:
             return np.array([], dtype=int)
@@ -303,12 +300,14 @@ def build_dataset(georgia_root: str, output_dir: str,
             skipped_records.append((ecg_id, f"errore_lettura: {e}"))
             continue
 
-        r_peaks = detect_r_peaks_v1_v5_average(signal, fs)
+        signal_filtered = preprocess_ecg(signal, fs, notch_freq=60.0)
+
+        r_peaks = detect_r_peaks_v1_v5_average(signal_filtered, fs)
         if len(r_peaks) < 5:
             skipped_records.append((ecg_id, "picchi_R_insufficienti_per_5o"))
             continue
 
-        beats, used_peaks = segment_beats(signal, r_peaks, fs, pre_ms, post_ms)
+        beats, used_peaks = segment_beats(signal_filtered, r_peaks, fs, pre_ms, post_ms)
 
         for local_idx, r_sample in enumerate(used_peaks):
             filename = f"seg{global_beat_counter:0{FILENAME_DIGITS}d}.npy"
