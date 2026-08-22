@@ -128,7 +128,7 @@ class SignedGCNBlock(nn.Module):
         h_neg = self.conv_neg(-x, edge_index_neg, edge_weight=edge_weight_neg)
 
         # concateno i due contributi per evitare che grandi valori nel ramo
-        #  positivo possano annullare quelli negativi (somma algebrica).
+        # positivo possano annullare quelli negativi (se somma algebrica).
         h = torch.cat([h_pos, h_neg], dim=1)
         # Proiettiamo alla dimensione di output
         out = self.lin(h)
@@ -183,7 +183,7 @@ class ECG_GCN(nn.Module):
 
     def __init__(self, node_feat_dim: int = 64, hidden_dim: int = 128,
                  num_classes: int = 13, num_gnn_layers: int = 2,
-                 use_attention: bool = False, dropout: float = 0.3):
+                 use_attention: bool = False, dropout: float = 0.3, use_mlp_classifier: bool = False):
         super().__init__()
         self.use_attention = use_attention
         self.cnn_encoder = LeadCNNEncoder(out_channels=node_feat_dim)
@@ -203,12 +203,15 @@ class ECG_GCN(nn.Module):
             self.convs.append(conv_layer(in_dim, hidden_dim))
             in_dim = hidden_dim
 
-        self.classifier = nn.Sequential(
-            nn.Linear(hidden_dim * 2, hidden_dim),   # *2 per mean+max pooling
-            nn.ReLU(inplace=True),
-            nn.Dropout(dropout),
-            nn.Linear(hidden_dim, num_classes),
-        )
+        if use_mlp_classifier:
+            self.classifier = nn.Sequential(
+                nn.Linear(hidden_dim * 2, hidden_dim),   # *2 per mean+max pooling
+                nn.ReLU(inplace=True),
+                nn.Dropout(dropout),
+                nn.Linear(hidden_dim, num_classes),
+            )
+        else:
+            self.classifier = nn.Linear(hidden_dim * 2, num_classes)
 
     def forward(self, data):
         x, batch = data.x, data.batch
@@ -242,7 +245,8 @@ class ECG_GCN(nn.Module):
             for conv in self.convs:
                 x = F.leaky_relu(conv(x, edge_index_pos, edge_weight_pos,
                                       edge_index_neg, edge_weight_neg), negative_slope=0.1)
-
+        # Effettuaiamo sia la media sia max pooling per ottenere
+        # un valore più robusto dell'intero grafo
         x_mean = global_mean_pool(x, batch)   # [batch_size, hidden_dim]
         x_max = global_max_pool(x, batch)     # [batch_size, hidden_dim]
         graph_embedding = torch.cat([x_mean, x_max], dim=1)

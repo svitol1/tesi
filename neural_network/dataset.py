@@ -33,8 +33,7 @@ sulle stesse 12 derivazioni:
     - grafo NEGATIVO: coppie di derivazioni discordi (sim < 0), peso = |sim|
 entrambi con pesi >= 0 per costruzione, quindi compatibili con GCNConv. Sarà
 poi il modello (model.py) a combinare i due contributi, negando le feature
-in ingresso nel ramo negativo per rappresentare esplicitamente "mi aspetto
-il segnale invertito di questo vicino".
+in ingresso nel ramo negativo per rappresentare esplicitamente l'anti-correlazione.
 
 Questo file definisce la topologia del grafo e il wrapping dei
 dati in oggetti torch_geometric.data.Data.
@@ -52,7 +51,7 @@ SEGMENT_LENGTH = 500
 # Nota: essendo la rete relativamente piccola, per evitare overfitting,
 # è stato volutamente scelto un valore più alto in modo da creare un grafo
 # più sparso (meno archi) e quindi più regolarizzato.
-EPS = 0.3
+EPS = 0.2
 
 # Ordine fisso dei nodi.
 LEAD_ORDER = ["I", "II", "III", "aVR", "aVL", "aVF",
@@ -140,53 +139,6 @@ def build_signed_ecg_graph_topology():
     edge_weight_neg = torch.tensor(weights_neg, dtype=torch.float)
 
     return edge_index_pos, edge_weight_pos, edge_index_neg, edge_weight_neg
-
-
-def build_ecg_graph_topology(mode: str = "vector_geometric", threshold: float = 0.0):
-    """
-    [LEGACY]
-    Costruisce un SINGOLO grafo (non SIGNED) con soglia sulla similarità.
-    Mantenuta per poter confrontare la versione signed
-    (build_signed_ecg_graph_topology) contro questa versione più semplice,
-    che scarta le anti-correlazioni. Non usata dal modello principale.
-
-    Parameters
-    ----------
-    mode : str
-        - "vector_geometric": similitudine del coseno tra i vettori 3D.
-        - "fully_connected": grafo completo uniformemente pesato.
-    threshold : float
-        Soglia minima di similitudine per creare un arco.
-
-    Returns
-    -------
-    edge_index : torch.LongTensor, shape [2, num_edges]
-    edge_weight : torch.FloatTensor, shape [num_edges]
-    """
-    edges, weights = [], []
-    num_leads = len(LEAD_ORDER)
-
-    if mode == "vector_geometric":
-        sim_matrix = _compute_cosine_similarity_matrix()
-        for i in range(num_leads):
-            for j in range(num_leads):
-                w = sim_matrix[i, j]
-                if w > threshold:
-                    edges.append((i, j))
-                    weights.append(w)
-    elif mode == "fully_connected":
-        for i in range(num_leads):
-            for j in range(num_leads):
-                edges.append((i, j))
-                weights.append(1.0)
-    else:
-        raise ValueError(f"modalità '{mode}' non riconosciuta.")
-
-    edge_index = torch.tensor(edges, dtype=torch.long).t().contiguous()
-    edge_weight = torch.tensor(weights, dtype=torch.float)
-
-    return edge_index, edge_weight
-
 
 class SignedECGData(Data):
     """
