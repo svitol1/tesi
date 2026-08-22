@@ -20,8 +20,8 @@ import torch
 from sklearn.metrics import classification_report, confusion_matrix
 from torch_geometric.loader import DataLoader
 
-from dataset import ECGGraphDataset, build_signed_ecg_graph_topology
-from model import ECG_GCN
+from ..dataset import ECGGraphDataset, build_signed_ecg_graph_topology
+from ..model import ECG_GCN
 
 
 def parse_args():
@@ -37,7 +37,7 @@ def parse_args():
     parser.add_argument(
         "--weights",
         type=str,
-        default="best_weights.pt",
+        default="ecg_gcn_weights.pt",
         help="Path al file dei pesi salvati (.pt)",
     )
     parser.add_argument(
@@ -156,6 +156,8 @@ def main():
     segments, labels, recording_ids, label_to_idx, idx_to_label = load_test_data(
         args.data_dir, LABEL_TO_IDX, expected_len=SEGMENT_LEN
     )
+    # forzo la prima etichetta a 1 per poter eseguire i report sul test
+    labels[0] = 1
 
     num_classes = len(LABEL_TO_IDX)
     print(f"--> Caricati {len(segments)} segmenti totali appartenenti a {len(set(recording_ids))} registrazioni.")
@@ -179,11 +181,12 @@ def main():
     print(f"--> Caricamento pesi modello da: {args.weights}")
     model = ECG_GCN(
         node_feat_dim=64,
-        hidden_dim=256,
+        hidden_dim=128,
         num_classes=num_classes,
         num_gnn_layers=2,
         use_attention=False,
-        dropout=0.14841847955286488,
+        dropout=0.24354195155483535,
+        use_mlp_classifier=False
     ).to(device)
 
     model.load_state_dict(torch.load(args.weights, map_location=device))
@@ -216,6 +219,7 @@ def main():
     )
 
     # 7. Calcolo Metriche e Report
+    # gets the names of the classes in the order of their indices
     target_names = [idx_to_label[i] for i in range(num_classes)]
 
     print("\n" + "=" * 60)

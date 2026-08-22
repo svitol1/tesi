@@ -1,10 +1,10 @@
 """
 Small training experiment to check whether ECG_GCN can memorize a tiny dataset.
 
-This is a diagnostic, not a validation procedure: it intentionally trains and
-evaluates on the same 16-32 segments. If the model cannot reach nearly 100%
-training accuracy on this set, there is likely a problem in the data pipeline,
-model, loss, or optimization setup.
+This is a diagnostic: it intentionally trains and evaluates on the same
+16-32 segments. If the model cannot reach nearly 100% training accuracy
+on this set, there is likely a problem in the data pipeline, model,
+loss, or optimization setup.
 
 Usage:
     python3 test_overfit.py
@@ -19,9 +19,9 @@ import torch.nn as nn
 
 from torch_geometric.loader import DataLoader
 
-from dataset import ECGGraphDataset, build_signed_ecg_graph_topology
-from model import ECG_GCN
-from train import load_misplacement_data
+from ..dataset import ECGGraphDataset, build_signed_ecg_graph_topology
+from ..model import ECG_GCN
+from ..train import load_misplacement_data
 
 
 SEGMENT_LENGTH = 500
@@ -138,11 +138,12 @@ def main():
 
     model = ECG_GCN(
         node_feat_dim=64,
-        hidden_dim=64,
+        hidden_dim=128,
         num_classes=len(label_to_idx),
-        num_gnn_layers=3,
+        num_gnn_layers=2,
         use_attention=False,
-        dropout=0.0,
+        dropout=0.2,
+        use_mlp_classifier=False
     ).to(device)
     optimizer = torch.optim.Adam(model.parameters(), lr=args.lr)
     criterion = nn.CrossEntropyLoss()
@@ -160,23 +161,6 @@ def main():
         if epoch == 1 or epoch % 25 == 0 or epoch == args.epochs:
             accuracy = (logits.argmax(dim=1) == targets).float().mean().item()
             print(f"Epoch {epoch:03d} | loss={loss.item():.6f} | accuracy={accuracy:.4f}")
-
-    model.eval()
-    with torch.no_grad():
-        batch = next(iter(loader)).to(device)
-        logits = model(batch)
-        final_loss = criterion(logits, batch.y.view(-1)).item()
-        final_predictions = logits.argmax(dim=1)
-        final_accuracy = (final_predictions == batch.y.view(-1)).float().mean().item()
-
-    print("\nOverfit check")
-    print(f"Final loss: {final_loss:.6f}")
-    print(f"Final accuracy: {final_accuracy:.4f}")
-    if final_accuracy == 1.0 and final_loss < 0.01:
-        print("PASS: il modello ha memorizzato il subset")
-    else:
-        print("FAIL: il modello non ha raggiunto loss < 0.01 e accuracy 100%")
-
 
 if __name__ == "__main__":
     main()

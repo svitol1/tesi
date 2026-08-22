@@ -220,9 +220,12 @@ def build_dataset(ptbxl_root: str, output_dir: str, sampling_rate: int = 500,
             skipped_records.append((ecg_id, f"errore_lettura: {e}"))
             continue
 
-        signal_filtered = preprocess_ecg(signal, fs, notch_freq=60.0)
+        # applica il preprocessing a tutte le derivazioni
+        for lead_idx in range(signal.shape[1]):
+            signal[:, lead_idx] = preprocess_ecg(signal[:, lead_idx], 50.0)
+
         # rileva i picchi R mediati tra V1 e V5
-        r_peaks = detect_r_peaks_v1_v5_average(signal_filtered, fs)
+        r_peaks = detect_r_peaks_v1_v5_average(signal, fs)
         # servono almeno 5 picchi per poter selezionare il 3o e il 5o
         if len(r_peaks) < 5:
             skipped_records.append((ecg_id, "picchi_R_insufficienti_per_3o_5o"))
@@ -231,7 +234,7 @@ def build_dataset(ptbxl_root: str, output_dir: str, sampling_rate: int = 500,
         selected_peaks = np.array([r_peaks[2], r_peaks[4]], dtype=int)
 
         # segmenta solo il 3o e il 5o picco
-        beats, used_peaks = segment_beats(signal_filtered, selected_peaks, fs, pre_ms, post_ms)
+        beats, used_peaks = segment_beats(signal, selected_peaks, fs, pre_ms, post_ms)
         # devono rimanere entrambi validi dopo il controllo bordi
         if beats.shape[0] != 2:
             skipped_records.append((ecg_id, "3o_o_5o_battito_fuori_bordo"))

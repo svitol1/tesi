@@ -2,6 +2,9 @@ beat_dataset/
 misplacement_dataset/
 physionet.org/
 georgia_dataset/
+georgia_normalized/
+
+ecg_gcn_weights.pt
 
 .venv/
 

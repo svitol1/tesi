@@ -38,8 +38,8 @@ import argparse
 import glob
 import os
 
-from data_prep.preprocessing import preprocess_ecg
-from data_prep.pan_tompkins_algo import detect_r_peaks_pan_tompkins
+from ..data_prep.preprocessing import preprocess_ecg
+from ..data_prep.pan_tompkins_algo import detect_r_peaks_pan_tompkins
 
 import numpy as np
 import pandas as pd
@@ -300,14 +300,16 @@ def build_dataset(georgia_root: str, output_dir: str,
             skipped_records.append((ecg_id, f"errore_lettura: {e}"))
             continue
 
-        signal_filtered = preprocess_ecg(signal, fs, notch_freq=60.0)
+        # applica il preprocessing a tutte le derivazioni
+        for lead_idx in range(signal.shape[1]):
+            signal[:, lead_idx] = preprocess_ecg(signal[:, lead_idx], 60.0)
 
-        r_peaks = detect_r_peaks_v1_v5_average(signal_filtered, fs)
+        r_peaks = detect_r_peaks_v1_v5_average(signal, fs)
         if len(r_peaks) < 5:
             skipped_records.append((ecg_id, "picchi_R_insufficienti_per_5o"))
             continue
 
-        beats, used_peaks = segment_beats(signal_filtered, r_peaks, fs, pre_ms, post_ms)
+        beats, used_peaks = segment_beats(signal, r_peaks, fs, pre_ms, post_ms)
 
         for local_idx, r_sample in enumerate(used_peaks):
             filename = f"seg{global_beat_counter:0{FILENAME_DIGITS}d}.npy"
