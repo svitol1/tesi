@@ -180,9 +180,9 @@ def main():
         f"Test segments: {len(test_idx)}"
     )
 
-    train_loader = DataLoader(train_dataset, batch_size=32, shuffle=True)
-    val_loader = DataLoader(val_dataset, batch_size=32, shuffle=False)
-    test_loader = DataLoader(test_dataset, batch_size=32, shuffle=False)
+    train_loader = DataLoader(train_dataset, batch_size=64, shuffle=True)
+    val_loader = DataLoader(val_dataset, batch_size=64, shuffle=False)
+    test_loader = DataLoader(test_dataset, batch_size=64, shuffle=False)
 
     # --------------------------------------------------------------------
     # 2) Modello, ottimizzatore, loss
@@ -192,11 +192,12 @@ def main():
 
     model = ECG_GCN(
         node_feat_dim=64,
-        hidden_dim=256,
+        hidden_dim=128,
         num_classes=NUM_CLASSES,
         num_gnn_layers=2,
         use_attention=False,
-        dropout=0.15,
+        dropout=0.24354195155483535,
+        use_mlp_classifier=False
     ).to(device)
 
     if load_old_weights:
@@ -212,7 +213,7 @@ def main():
         else:
             print(f"Checkpoint non trovato in {weights_path}, training da zero.")
 
-    optimizer = torch.optim.Adam(model.parameters(), lr=0.000334, weight_decay=4.4535e-05)
+    optimizer = torch.optim.Adam(model.parameters(), lr=0.0003664736647670816, weight_decay=4.552306763905105e-06)
 
     criterion = nn.CrossEntropyLoss()
 

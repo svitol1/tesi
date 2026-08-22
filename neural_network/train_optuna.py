@@ -84,12 +84,13 @@ def make_objective(train_dataset, val_dataset, num_classes, device):
         np.random.seed(0)
 
         # -------------------- spazio di ricerca --------------------
-        hidden_dim = trial.suggest_categorical("hidden_dim", [64, 128, 256])
+        hidden_dim = trial.suggest_categorical("hidden_dim", [64, 128])
         num_gnn_layers = trial.suggest_int("num_gnn_layers", 1, 3)
         dropout = trial.suggest_float("dropout", 0.1, 0.5)
         lr = trial.suggest_float("lr", 1e-4, 1e-2, log=True)
         weight_decay = trial.suggest_float("weight_decay", 1e-6, 1e-3, log=True)
         batch_size = trial.suggest_categorical("batch_size", [16, 32, 64])
+        use_mlp_classifier = trial.suggest_categorical("use_mlp_classifier", [False, True])
         # use_attention fissato a False: non fa parte della ricerca
 
         train_loader = DataLoader(train_dataset, batch_size=batch_size, shuffle=True)
@@ -102,6 +103,7 @@ def make_objective(train_dataset, val_dataset, num_classes, device):
             num_gnn_layers=num_gnn_layers,
             use_attention=False,
             dropout=dropout,
+            use_mlp_classifier=use_mlp_classifier
         ).to(device)
 
         optimizer = torch.optim.Adam(
