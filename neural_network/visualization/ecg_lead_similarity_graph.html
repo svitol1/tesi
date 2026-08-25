@@ -1,0 +1,295 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>ECG Lead Signed Graph</title>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/d3/7.9.0/d3.min.js"></script>
+<style>
+  :root {
+    --bg: #0f1216;
+    --panel: #171b21;
+    --border: #2a2f38;
+    --text: #e8eaed;
+    --muted: #9aa3af;
+    --pos: #b2182b;
+    --neg: #2166ac;
+    --limb: #e8b400;
+    --precordial: #35a7ff;
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0;
+    background: var(--bg);
+    color: var(--text);
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+    padding: 24px;
+  }
+  .wrap { max-width: 980px; margin: 0 auto; }
+  h1 { font-size: 1.25rem; font-weight: 600; margin: 0 0 4px 0; }
+  p.subtitle {
+    color: var(--muted);
+    font-size: 0.9rem;
+    margin: 0 0 20px 0;
+    line-height: 1.5;
+  }
+  .panel {
+    background: var(--panel);
+    border: 1px solid var(--border);
+    border-radius: 12px;
+    padding: 14px;
+  }
+  .controls {
+    display: flex;
+    gap: 18px;
+    align-items: center;
+    margin-bottom: 10px;
+    flex-wrap: wrap;
+    font-size: 0.85rem;
+  }
+  .control-group { display: flex; align-items: center; gap: 8px; }
+  input[type=range] { width: 160px; }
+  button {
+    background: #1f2530;
+    color: var(--text);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    padding: 6px 12px;
+    font-size: 0.85rem;
+    cursor: pointer;
+  }
+  button:hover { background: #2a3140; }
+  button.active { background: #2f3a52; border-color: #3d4a68; }
+  .legend {
+    display: flex;
+    gap: 18px;
+    font-size: 0.78rem;
+    color: var(--muted);
+    margin-left: auto;
+    flex-wrap: wrap;
+  }
+  .legend-item { display: flex; align-items: center; gap: 6px; }
+  .swatch { width: 12px; height: 12px; border-radius: 3px; display: inline-block; }
+  #graph { width: 100%; height: 640px; cursor: grab; }
+  #graph:active { cursor: grabbing; }
+  .tooltip {
+    position: absolute;
+    pointer-events: none;
+    background: #1f2530;
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    padding: 6px 10px;
+    font-size: 0.78rem;
+    color: var(--text);
+    opacity: 0;
+    transition: opacity 0.1s;
+    white-space: nowrap;
+  }
+  .node-label {
+    fill: var(--text);
+    font-size: 12px;
+    font-weight: 600;
+    pointer-events: none;
+    text-anchor: middle;
+  }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <h1>12-Lead ECG &mdash; Signed Similarity Graph</h1>
+  <p class="subtitle">
+    Node-link view of the same cosine-similarity structure used to build the signed graph in
+    <code>ECGGraphDataset</code>. Red edges = positive (concordant) similarity, blue edges = negative
+    (discordant) similarity. Edge thickness/opacity scales with |cos θ|. Drag nodes, scroll to zoom, drag empty space to pan.
+  </p>
+
+  <div class="panel">
+    <div class="controls">
+      <div class="control-group">
+        <label for="threshold">Min |weight|: <span id="thresholdVal">0.50</span></label>
+        <input type="range" id="threshold" min="0" max="0.99" step="0.01" value="0.5">
+      </div>
+      <div class="control-group">
+        <button id="btnAll" class="active" onclick="setSignFilter('all')">All edges</button>
+        <button id="btnPos" onclick="setSignFilter('pos')">Positive only</button>
+        <button id="btnNeg" onclick="setSignFilter('neg')">Negative only</button>
+      </div>
+      <button onclick="resetLayout()">Reset layout</button>
+      <div class="legend">
+        <div class="legend-item"><span class="swatch" style="background:var(--limb)"></span>Limb leads</div>
+        <div class="legend-item"><span class="swatch" style="background:var(--precordial)"></span>Precordial leads</div>
+        <div class="legend-item"><span class="swatch" style="background:var(--pos)"></span>Positive edge</div>
+        <div class="legend-item"><span class="swatch" style="background:var(--neg)"></span>Negative edge</div>
+      </div>
+    </div>
+    <div id="graph"></div>
+  </div>
+</div>
+<div class="tooltip" id="tooltip"></div>
+
+<script>
+const leads = ["I", "II", "III", "aVR", "aVL", "aVF", "V1", "V2", "V3", "V4", "V5", "V6"];
+const leadVectors = {
+  I: [1.000, 0.000, 0.000],
+  II: [0.500, 0.866, 0.000],
+  III: [-0.500, 0.866, 0.000],
+  aVR: [-0.866, -0.500, 0.000],
+  aVL: [0.866, -0.500, 0.000],
+  aVF: [0.000, 1.000, 0.000],
+  V1: [-0.342, 0.174, 0.923],
+  V2: [-0.174, 0.174, 0.969],
+  V3: [0.174, 0.087, 0.981],
+  V4: [0.500, 0.000, 0.866],
+  V5: [0.866, -0.087, 0.492],
+  V6: [0.985, -0.174, 0.000]
+};
+
+const vectorNorm = vector => Math.sqrt(vector.reduce((sum, value) => sum + value ** 2, 0));
+const normalizedVectors = leads.map(lead => {
+  const vector = leadVectors[lead];
+  const norm = vectorNorm(vector);
+  return vector.map(value => value / norm);
+});
+
+const matrix = normalizedVectors.map(source =>
+  normalizedVectors.map(target =>
+    source.reduce((sum, value, index) => sum + value * target[index], 0)
+  )
+);
+
+const limbSet = new Set(["I","II","III","aVR","aVL","aVF"]);
+
+const nodes = leads.map(id => ({ id, group: limbSet.has(id) ? 'limb' : 'precordial' }));
+
+let allLinks = [];
+for (let i = 0; i < leads.length; i++) {
+  for (let j = i + 1; j < leads.length; j++) {
+    allLinks.push({ source: leads[i], target: leads[j], value: matrix[i][j] });
+  }
+}
+
+const container = document.getElementById('graph');
+const width = container.clientWidth;
+const height = 640;
+
+const svg = d3.select('#graph').append('svg')
+  .attr('width', width)
+  .attr('height', height)
+  .attr('viewBox', [0, 0, width, height]);
+
+const zoomLayer = svg.append('g');
+
+svg.call(d3.zoom()
+  .scaleExtent([0.3, 4])
+  .on('zoom', (event) => zoomLayer.attr('transform', event.transform)));
+
+const linkLayer = zoomLayer.append('g');
+const nodeLayer = zoomLayer.append('g');
+
+const tooltip = d3.select('#tooltip');
+
+const simulation = d3.forceSimulation(nodes)
+  .force('link', d3.forceLink(allLinks).id(d => d.id).distance(l => 260 * (1 - Math.abs(l.value)) + 40).strength(0.15))
+  .force('charge', d3.forceManyBody().strength(-260))
+  .force('center', d3.forceCenter(width / 2, height / 2))
+  .force('collide', d3.forceCollide(34));
+
+let linkSel, nodeSel, labelSel;
+let signFilter = 'all';
+let threshold = 0.5;
+
+function currentLinks() {
+  return allLinks.filter(l => {
+    if (Math.abs(l.value) < threshold) return false;
+    if (signFilter === 'pos') return l.value > 0;
+    if (signFilter === 'neg') return l.value < 0;
+    return true;
+  });
+}
+
+function render() {
+  const links = currentLinks();
+
+  linkSel = linkLayer.selectAll('line').data(links, d => d.source.id ? `${d.source.id}-${d.target.id}` : `${d.source}-${d.target}`);
+  linkSel.exit().remove();
+  const linkEnter = linkSel.enter().append('line')
+    .attr('stroke-linecap', 'round');
+  linkSel = linkEnter.merge(linkSel)
+    .attr('stroke', d => d.value >= 0 ? 'var(--pos)' : 'var(--neg)')
+    .attr('stroke-opacity', d => 0.15 + 0.75 * Math.abs(d.value))
+    .attr('stroke-width', d => 0.6 + 4.5 * Math.abs(d.value))
+    .on('mouseover', (event, d) => {
+      tooltip.style('opacity', 1)
+        .html(`${d.source.id ?? d.source} &harr; ${d.target.id ?? d.target}<br>cos θ = ${d.value.toFixed(4)}`);
+    })
+    .on('mousemove', (event) => {
+      tooltip.style('left', (event.pageX + 14) + 'px').style('top', (event.pageY - 10) + 'px');
+    })
+    .on('mouseout', () => tooltip.style('opacity', 0));
+
+  simulation.force('link').links(allLinks);
+  simulation.alpha(0.5).restart();
+}
+
+nodeSel = nodeLayer.selectAll('circle').data(nodes).enter().append('circle')
+  .attr('r', 18)
+  .attr('fill', d => d.group === 'limb' ? 'var(--limb)' : 'var(--precordial)')
+  .attr('stroke', '#0f1216')
+  .attr('stroke-width', 2)
+  .call(d3.drag()
+    .on('start', dragstarted)
+    .on('drag', dragged)
+    .on('end', dragended));
+
+labelSel = nodeLayer.selectAll('text').data(nodes).enter().append('text')
+  .attr('class', 'node-label')
+  .attr('dy', 4)
+  .text(d => d.id);
+
+render();
+
+simulation.on('tick', () => {
+  linkSel
+    .attr('x1', d => d.source.x)
+    .attr('y1', d => d.source.y)
+    .attr('x2', d => d.target.x)
+    .attr('y2', d => d.target.y);
+  nodeSel
+    .attr('cx', d => d.x)
+    .attr('cy', d => d.y);
+  labelSel
+    .attr('x', d => d.x)
+    .attr('y', d => d.y);
+});
+
+function dragstarted(event, d) {
+  if (!event.active) simulation.alphaTarget(0.3).restart();
+  d.fx = d.x; d.fy = d.y;
+}
+function dragged(event, d) {
+  d.fx = event.x; d.fy = event.y;
+}
+function dragended(event, d) {
+  if (!event.active) simulation.alphaTarget(0);
+  d.fx = null; d.fy = null;
+}
+
+document.getElementById('threshold').addEventListener('input', (e) => {
+  threshold = +e.target.value;
+  document.getElementById('thresholdVal').textContent = threshold.toFixed(2);
+  render();
+});
+
+function setSignFilter(mode) {
+  signFilter = mode;
+  ['btnAll', 'btnPos', 'btnNeg'].forEach(id => document.getElementById(id).classList.remove('active'));
+  document.getElementById('btn' + mode.charAt(0).toUpperCase() + mode.slice(1)).classList.add('active');
+  render();
+}
+
+function resetLayout() {
+  nodes.forEach(n => { n.x = width/2 + (Math.random()-0.5)*40; n.y = height/2 + (Math.random()-0.5)*40; n.fx = null; n.fy = null; });
+  simulation.alpha(1).restart();
+}
+</script>
+</body>
+</html>
