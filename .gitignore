@@ -1,8 +1,7 @@
-beat_dataset/
-misplacement_dataset/
+train/
+val/
+test/
 physionet.org/
-georgia_dataset/
-georgia_normalized/
 
 ecg_gcn_weights.pt
 

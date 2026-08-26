@@ -1,8 +1,17 @@
 """
 ================================================================================
 Training loop per la GCN pura definita in model.py, sui dati costruiti
-tramite dataset.py.
+tramite build_combined_dataset.py (PTB-XL + Georgia combinati).
 ================================================================================
+
+A differenza della versione precedente, lo split train/val NON viene
+piu' fatto qui tramite strat_fold: build_combined_dataset.py produce gia'
+cartelle separate train/ e val/, ciascuna con la propria
+final_dataset_index.csv e segments/. Qui ci limitiamo a caricarle.
+
+Il test finale (tutti i battiti per registrazione + majority voting) va
+eseguito separatamente con test/test.py sulla cartella test/ prodotta
+dallo stesso builder.
 """
 
 import numpy as np
@@ -31,17 +40,26 @@ def ask_yes_no(prompt: str, default: bool = False) -> bool:
     return answer in {"y", "yes", "s", "si"}
 
 
-def load_misplacement_data(
-    dataset_root: str = "data_prep/misplacement_dataset",
+def load_split(
+    split_root: str,
     expected_len: int = 500,
+    label_to_idx: dict | None = None,
 ):
-    """Load ECG segments and labels from misplacement_dataset.
+    """Carica un singolo split (train/ o val/) prodotto da
+    dataset_builder.py.
 
     Expects:
-    - index CSV at <dataset_root>/final_dataset_index.csv
-    - npy segments at <dataset_root>/segments/<filename>
+    - index CSV a <split_root>/final_dataset_index.csv
+    - segmenti npy a <split_root>/segments/<filename>
+
+    Se `label_to_idx` e' None, viene costruito dalle etichette trovate
+    in questo split (tipicamente usato per il train set). Se e' fornito,
+    viene riusato cosi' com'e' (usato per il val set, per garantire che
+    gli indici numerici delle classi combacino con quelli del train set)
+    e viene sollevato un errore se il val set contiene etichette non
+    presenti nel train set.
     """
-    root = Path(dataset_root)
+    root = Path(split_root)
     index_path = root / "final_dataset_index.csv"
     segments_dir = root / "segments"
 
@@ -51,17 +69,24 @@ def load_misplacement_data(
         raise FileNotFoundError(f"Cartella segmenti non trovata: {segments_dir}")
 
     df = pd.read_csv(index_path)
-    required_cols = {"filename", "label", "strat_fold"}
+    required_cols = {"filename", "label"}
     missing = required_cols - set(df.columns)
     if missing:
         raise ValueError(f"Colonne mancanti nel CSV: {sorted(missing)}")
 
-    label_names = sorted(df["label"].astype(str).unique().tolist())
-    label_to_idx = {name: i for i, name in enumerate(label_names)}
+    found_labels = sorted(df["label"].astype(str).unique().tolist())
+
+    if label_to_idx is None:
+        label_to_idx = {name: i for i, name in enumerate(found_labels)}
+    else:
+        unknown = set(found_labels) - set(label_to_idx.keys())
+        if unknown:
+            raise ValueError(
+                f"Etichette in {index_path} non presenti nel train set: {sorted(unknown)}"
+            )
 
     segments = []
     labels = []
-    strat_folds = []
     missing_files = 0
 
     for row in df.itertuples(index=False):
@@ -76,14 +101,13 @@ def load_misplacement_data(
                 f"Shape non valida per {seg_path.name}: {seg.shape}, atteso array 2D"
             )
 
-        # Compatibilita con dataset salvati come (T, 12): li convertiamo a (12, T).
-        if seg.shape[1] == 12 and seg.shape[0] != 12:
+        # Compatibilita' con dataset salvati come (T, 12): li convertiamo a (12, T).
+        if seg.shape[1] == 12 and seg.shape[0] == 500:
             seg = seg.T
 
         if seg.shape[0] != 12:
             raise ValueError(
                 f"Shape non valida per {seg_path.name}: {seg.shape}, atteso (12, T) "
-                "oppure (T, 12)"
             )
         if seg.shape[1] != expected_len:
             raise ValueError(
@@ -93,46 +117,23 @@ def load_misplacement_data(
 
         segments.append(seg)
         labels.append(label_to_idx[str(row.label)])
-        if pd.isna(row.strat_fold):
-            raise ValueError(f"strat_fold mancante per segmento {row.filename}")
-        strat_folds.append(int(row.strat_fold))
 
     if not segments:
-        raise RuntimeError("Nessun segmento valido caricato dal dataset")
+        raise RuntimeError(f"Nessun segmento valido caricato da {split_root}")
 
     if missing_files:
-        print(f"Attenzione: {missing_files} file segmenti mancanti nel dataset")
+        print(f"Attenzione: {missing_files} file segmenti mancanti in {split_root}")
 
     segments = np.stack(segments, axis=0)
     labels = np.asarray(labels, dtype=np.int64)
-    strat_folds = np.asarray(strat_folds, dtype=np.int64)
 
-    print(f"Segmenti caricati: {segments.shape[0]} | shape singolo segmento: {segments.shape[1:]}")
-    print(f"Classi ({len(label_names)}): {label_to_idx}")
-    print(f"Strat folds trovati: {sorted(np.unique(strat_folds).tolist())}")
+    print(f"[{root.name}] Segmenti caricati: {segments.shape[0]} | "
+          f"shape singolo segmento: {segments.shape[1:]}")
+    if "source" in df.columns:
+        print(f"[{root.name}] Provenienza: "
+              f"{df['source'].value_counts().to_dict()}")
 
-    return segments, labels, strat_folds, label_to_idx
-
-
-def build_ptbxl_splits_from_strat_fold(strat_folds: np.ndarray):
-    """Create train/val/test indices from PTB-XL stratified folds.
-
-    Convention used in PTB-XL:
-    - train: folds 1..8
-    - val: fold 9
-    - test: fold 10
-    """
-    train_idx = np.where(np.isin(strat_folds, np.arange(1, 9)))[0]
-    val_idx = np.where(strat_folds == 9)[0]
-    test_idx = np.where(strat_folds == 10)[0]
-
-    if len(train_idx) == 0 or len(val_idx) == 0 or len(test_idx) == 0:
-        raise RuntimeError(
-            "Split train/val/test non valido da strat_fold: "
-            f"train={len(train_idx)}, val={len(val_idx)}, test={len(test_idx)}"
-        )
-
-    return train_idx, val_idx, test_idx
+    return segments, labels, label_to_idx
 
 
 def main():
@@ -148,41 +149,46 @@ def main():
     # 1) Dati
     # --------------------------------------------------------------------
     SEGMENT_LEN = 500      # 400ms pre + 600ms post picco R = 1 secondo a 500 Hz
-    segments, labels, strat_folds, label_to_idx = load_misplacement_data(
-        dataset_root="data_prep/misplacement_dataset",
+    DATASET_ROOT = "data_prep/"
+
+    train_segments, train_labels, label_to_idx = load_split(
+        split_root=f"{DATASET_ROOT}/train",
         expected_len=SEGMENT_LEN,
     )
+    val_segments, val_labels, _ = load_split(
+        split_root=f"{DATASET_ROOT}/val",
+        expected_len=SEGMENT_LEN,
+        label_to_idx=label_to_idx,
+    )
+
     NUM_CLASSES = len(label_to_idx)
+    print(f"Classi ({NUM_CLASSES}): {label_to_idx}")
+    print(f"Train segments: {len(train_labels)} | Val segments: {len(val_labels)}")
 
     # Generazione topologia basata sui vettori 3D delle derivazioni
     edge_index_pos, edge_weight_pos, edge_index_neg, edge_weight_neg = build_signed_ecg_graph_topology()
 
-    dataset = ECGGraphDataset(
-        segments=segments,
-        labels=labels,
+    train_dataset = ECGGraphDataset(
+        segments=train_segments,
+        labels=train_labels,
         edge_index_pos=edge_index_pos,
         edge_weight_pos=edge_weight_pos,
         edge_index_neg=edge_index_neg,
         edge_weight_neg=edge_weight_neg,
-        normalize=True
+        normalize=True,
     )
-
-    # Split standard PTB-XL basato su strat_fold.
-    train_idx, val_idx, test_idx = build_ptbxl_splits_from_strat_fold(strat_folds)
-
-    train_dataset = dataset[train_idx.tolist()]
-    val_dataset = dataset[val_idx.tolist()]
-    test_dataset = dataset[test_idx.tolist()]
-
-    print(
-        f"Train segments: {len(train_idx)} | "
-        f"Val segments: {len(val_idx)} | "
-        f"Test segments: {len(test_idx)}"
+    val_dataset = ECGGraphDataset(
+        segments=val_segments,
+        labels=val_labels,
+        edge_index_pos=edge_index_pos,
+        edge_weight_pos=edge_weight_pos,
+        edge_index_neg=edge_index_neg,
+        edge_weight_neg=edge_weight_neg,
+        normalize=True,
     )
 
     train_loader = DataLoader(train_dataset, batch_size=64, shuffle=True)
     val_loader = DataLoader(val_dataset, batch_size=64, shuffle=False)
-    test_loader = DataLoader(test_dataset, batch_size=64, shuffle=False)
 
     # --------------------------------------------------------------------
     # 2) Modello, ottimizzatore, loss
@@ -196,7 +202,7 @@ def main():
         num_classes=NUM_CLASSES,
         num_gnn_layers=2,
         use_attention=False,
-        dropout=0.24354195155483535,
+        dropout=0.23116470198461048,
         use_mlp_classifier=False
     ).to(device)
 
@@ -213,7 +219,7 @@ def main():
         else:
             print(f"Checkpoint non trovato in {weights_path}, training da zero.")
 
-    optimizer = torch.optim.Adam(model.parameters(), lr=0.0003664736647670816, weight_decay=4.552306763905105e-06)
+    optimizer = torch.optim.Adam(model.parameters(), lr=0.0010532404166862267, weight_decay=1.053909018491971e-05)
 
     criterion = nn.CrossEntropyLoss()
 
@@ -221,8 +227,6 @@ def main():
         optimizer, mode='min', factor=0.3, patience=3
     )
 
-    # Funzione unica per train/val/test: deve essere disponibile
-    # anche quando il training viene saltato.
     def run_epoch(loader, train: bool):
         model.train() if train else model.eval()
         total_loss, correct, total = 0.0, 0, 0
@@ -232,7 +236,6 @@ def main():
                 out = model(data)                     # [batch_size, NUM_CLASSES]
                 y = data.y.view(-1)                    # [batch_size]
                 loss = criterion(out, y)
-
                 if train:
                     optimizer.zero_grad()
                     loss.backward()
@@ -262,35 +265,14 @@ def main():
         # --------------------------------------------------------------------
         torch.save(model.state_dict(), "ecg_gcn_weights.pt")
         print("Pesi salvati in ecg_gcn_weights.pt")
-
-    # --------------------------------------------------------------------
-    # 5) Test opzionale
-    # --------------------------------------------------------------------
-    run_test = ask_yes_no("vuoi testare il modello?", default=True)
-    if run_test:
-        if not run_training and not load_old_weights:
-            # Se non si allena e non si sono caricati pesi, proviamo a
-            # caricare automaticamente l'ultimo checkpoint disponibile.
-            if WEIGHTS_PATH.exists():
-                try:
-                    state_dict = torch.load(WEIGHTS_PATH, map_location=device)
-                    model.load_state_dict(state_dict)
-                    print(f"Pesi caricati da {WEIGHTS_PATH} per il test.")
-                except Exception as exc:
-                    print(f"Impossibile caricare i pesi da {WEIGHTS_PATH}: {exc}")
-                    print("Test eseguito con pesi correnti del modello.")
-            else:
-                print(
-                    f"Checkpoint {WEIGHTS_PATH} non trovato: "
-                    "test con modello non addestrato."
-                )
-
-        test_loss, test_acc = run_epoch(test_loader, train=False)
-        print(
-            f"Test results | test_loss={test_loss:.4f} test_acc={test_acc:.4f}"
-        )
     else:
-        print("Test saltato su richiesta utente.")
+        print("Training saltato su richiesta utente.")
+
+    print(
+        "\nPer valutare il modello sul test set (tutti i battiti per "
+        "registrazione + majority voting), esegui separatamente:\n"
+        f"  python test/test.py --data_dir {DATASET_ROOT}/test --weights ecg_gcn_weights.pt"
+    )
 
 
 if __name__ == "__main__":
