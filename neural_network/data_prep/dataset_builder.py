@@ -63,9 +63,16 @@ import pandas as pd
 import wfdb
 from tqdm import tqdm
 
-from pan_tompkins_algo import detect_r_peaks_pan_tompkins
-from preprocessing import preprocess_ecg
-from lead_misplacement import apply_transform, MISPLACEMENT_TRANSFORMS
+try:
+    from .pan_tompkins_algo import detect_r_peaks_pan_tompkins
+    from .preprocessing import preprocess_ecg
+    from .lead_misplacement import apply_transform, MISPLACEMENT_TRANSFORMS
+except ImportError:
+    # Support running this file directly as a script from inside data_prep/,
+    # or importing it from the project root as data_prep.dataset_builder.
+    from pan_tompkins_algo import detect_r_peaks_pan_tompkins
+    from preprocessing import preprocess_ecg
+    from lead_misplacement import apply_transform, MISPLACEMENT_TRANSFORMS
 
 SAMPLING_RATE = 500
 LEAD_NAMES_PTBXL = ["I", "II", "III", "AVR", "AVL", "AVF",

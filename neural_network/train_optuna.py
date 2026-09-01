@@ -1,32 +1,37 @@
 """
 ================================================================================
 Ottimizzazione degli iperparametri (Optuna) per la GCN pura definita in
-model.py, sui dati costruiti tramite dataset.py.
+model.py, sui dati costruiti tramite dataset_builder.py.
 
-Basato sulla struttura di train.py: stesso caricamento dati, stesso split
-per paziente, stessa topologia del grafo. use_attention è fissato a False.
+Riusa da train.py:
+    - load_split      : caricamento di una singola cartella (train/ o val/)
+    - run_epoch        : un'epoca di train o eval, identica a quella
+                          usata nel training "vero", cosi' la ricerca
+                          ottimizza esattamente la stessa loss/metrica.
+
+use_attention è fissato a False.
 ================================================================================
 """
 
-import numpy as np
-import torch
-import torch.nn as nn
-
 from pathlib import Path
 
+import numpy as np
 import optuna
+import torch
+import torch.nn as nn
 from optuna.trial import TrialState
 from torch_geometric.loader import DataLoader
 
-from model import ECG_GCN
 from dataset import ECGGraphDataset, build_signed_ecg_graph_topology
-from train import load_misplacement_data  # riuso il loader già definito in train.py
+from model import ECG_GCN
+from train import load_split, run_epoch  # riuso diretto da train.py
 
 
 # ----------------------------------------------------------------------------
 # Configurazione globale della ricerca
 # ----------------------------------------------------------------------------
 SEGMENT_LEN = 500
+DATASET_ROOT = "data_prep/"
 N_TRIALS = 50
 TIMEOUT_SECONDS = None          # None per disattivare il limite di tempo
 SEARCH_EPOCHS = 10              # poche per velocizzare la ricerca
@@ -34,18 +39,33 @@ STUDY_NAME = "ecg_gcn_hparam_search"
 
 
 def build_datasets():
-    """Carica i dati e costruisce train/val dataset PyG, una sola volta."""
-    segments, labels, patient_ids, label_to_idx = load_misplacement_data(
-        dataset_root="data_prep/misplacement_dataset",
+    """Carica train/ e val/ (gia' separati da dataset_builder.py)
+    e costruisce i dataset PyG corrispondenti, una sola volta."""
+    train_segments, train_labels, label_to_idx = load_split(
+        split_root=f"{DATASET_ROOT}/train",
         expected_len=SEGMENT_LEN,
+    )
+    val_segments, val_labels, _ = load_split(
+        split_root=f"{DATASET_ROOT}/val",
+        expected_len=SEGMENT_LEN,
+        label_to_idx=label_to_idx,
     )
     num_classes = len(label_to_idx)
 
     edge_index_pos, edge_weight_pos, edge_index_neg, edge_weight_neg = build_signed_ecg_graph_topology()
 
-    dataset = ECGGraphDataset(
-        segments=segments,
-        labels=labels,
+    train_dataset = ECGGraphDataset(
+        segments=train_segments,
+        labels=train_labels,
+        edge_index_pos=edge_index_pos,
+        edge_weight_pos=edge_weight_pos,
+        edge_index_neg=edge_index_neg,
+        edge_weight_neg=edge_weight_neg,
+        normalize=True,
+    )
+    val_dataset = ECGGraphDataset(
+        segments=val_segments,
+        labels=val_labels,
         edge_index_pos=edge_index_pos,
         edge_weight_pos=edge_weight_pos,
         edge_index_neg=edge_index_neg,
@@ -53,44 +73,29 @@ def build_datasets():
         normalize=True,
     )
 
-    # Split per paziente (identico a train.py, seed fisso per coerenza tra trial)
-    unique_patients = np.unique(patient_ids)
-    rng = np.random.default_rng(0)
-    shuffled_patients = rng.permutation(unique_patients)
-    n_train_patients = max(1, int(0.8 * len(shuffled_patients)))
-    train_patients = set(shuffled_patients[:n_train_patients])
-
-    train_idx = np.where(np.isin(patient_ids, list(train_patients)))[0]
-    val_idx = np.where(~np.isin(patient_ids, list(train_patients)))[0]
-
-    if len(train_idx) == 0 or len(val_idx) == 0:
-        raise RuntimeError("Split train/val non valido: uno dei due insiemi è vuoto")
-
-    train_dataset = dataset[train_idx.tolist()]
-    val_dataset = dataset[val_idx.tolist()]
-
-    print(f"Train segments: {len(train_idx)} | Val segments: {len(val_idx)}")
+    print(f"Train segments: {len(train_labels)} | Val segments: {len(val_labels)}")
     print(f"Classi ({num_classes}): {label_to_idx}")
 
     return train_dataset, val_dataset, num_classes
 
 
 def make_objective(train_dataset, val_dataset, num_classes, device):
-    """Crea la funzione objective, chiudendo sui dati già costruiti una volta."""
+    """Crea la funzione obiettivo, definendo lo spazio di ricerca."""
 
     def objective(trial: optuna.Trial) -> float:
-        #seed fisso per trial: la variabilità viene solo dagli iperparametri
+        # seed fisso per trial: la variabilita' viene solo dagli iperparametri
         torch.manual_seed(0)
         np.random.seed(0)
 
         # -------------------- spazio di ricerca --------------------
-        hidden_dim = trial.suggest_categorical("hidden_dim", [64, 128])
-        num_gnn_layers = trial.suggest_int("num_gnn_layers", 1, 3)
-        dropout = trial.suggest_float("dropout", 0.1, 0.5)
+        hidden_dim = trial.suggest_categorical("hidden_dim", [64, 128, 256])
+        num_gnn_layers = trial.suggest_int("num_gnn_layers", 1, 2, 3)
+        dropout = trial.suggest_float("dropout", 0.1, 0.4)
         lr = trial.suggest_float("lr", 1e-4, 1e-2, log=True)
         weight_decay = trial.suggest_float("weight_decay", 1e-6, 1e-3, log=True)
-        batch_size = trial.suggest_categorical("batch_size", [16, 32, 64])
+        batch_size = trial.suggest_categorical("batch_size", [32, 64, 128])
         use_mlp_classifier = trial.suggest_categorical("use_mlp_classifier", [False, True])
+
         # use_attention fissato a False: non fa parte della ricerca
 
         train_loader = DataLoader(train_dataset, batch_size=batch_size, shuffle=True)
@@ -111,32 +116,10 @@ def make_objective(train_dataset, val_dataset, num_classes, device):
         )
         criterion = nn.CrossEntropyLoss()
 
+        val_acc = 0.0
         for epoch in range(SEARCH_EPOCHS):
-            # ---- train ----
-            model.train()
-            for data in train_loader:
-                data = data.to(device)
-                optimizer.zero_grad()
-                out = model(data)
-                loss = criterion(out, data.y.view(-1))
-                loss.backward()
-                optimizer.step()
-
-            # ---- validazione ----
-            model.eval()
-            correct, total = 0, 0
-            val_loss_sum = 0.0
-            with torch.no_grad():
-                for data in val_loader:
-                    data = data.to(device)
-                    out = model(data)
-                    y = data.y.view(-1)
-                    loss = criterion(out, y)
-                    val_loss_sum += loss.item() * y.size(0)
-                    correct += (out.argmax(dim=1) == y).sum().item()
-                    total += y.size(0)
-            val_acc = correct / total
-            val_loss = val_loss_sum / total
+            _, _ = run_epoch(model, train_loader, criterion, optimizer, device, train=True)
+            _, val_acc = run_epoch(model, val_loader, criterion, optimizer, device, train=False)
 
             # ---- pruning ----
             trial.report(val_acc, epoch)
@@ -192,6 +175,7 @@ def main():
         for k, v in best.params.items():
             f.write(f"{k}: {v}\n")
     print(f"\nParametri migliori salvati in {out_path}")
+
 
 if __name__ == "__main__":
     main()
