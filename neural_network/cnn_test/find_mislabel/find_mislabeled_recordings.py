@@ -63,25 +63,21 @@ import torch
 from torch.utils.data import DataLoader
 from tqdm import tqdm
 
-# This script may be executed either as:
-#   python cnn_test/find_mislabeled_recordings.py
-#   python -m cnn_test.find_mislabeled_recordings
-# or imported from the project root. Add the repo root to the import path so the
-# package-style imports below can resolve regardless of the current working dir.
-project_root = Path(__file__).resolve().parents[1]
-if str(project_root) not in sys.path:
-    sys.path.insert(0, str(project_root))
+# This script may be executed directly from nested folders such as
+# cnn_test/find_mislabel/ or from the repo root. In both cases, Python only
+# knows about the script directory, not the repository root. Add both the repo
+# root and the cnn_test directory so imports work regardless of the cwd.
+script_path = Path(__file__).resolve()
+project_root = script_path.parents[2]
+cnn_test_dir = script_path.parents[1]
+for extra_path in (project_root, cnn_test_dir):
+    if str(extra_path) not in sys.path:
+        sys.path.insert(0, str(extra_path))
 
-script_dir = Path(__file__).resolve().parent
-if str(script_dir) not in sys.path:
-    sys.path.insert(0, str(script_dir))
 try:
     from cnn_dataset import ECGSegmentDataset
     from cnn_model import ECG_CNN
 except ImportError:
-    project_root = Path(__file__).resolve().parents[1]
-    if str(project_root) not in sys.path:
-        sys.path.insert(0, str(project_root))
     from cnn_dataset import ECGSegmentDataset
     from cnn_model import ECG_CNN
 
@@ -133,7 +129,7 @@ def parse_args():
     p.add_argument("--weights", type=str, required=True, help="Pesi del modello (.pt)")
     p.add_argument("--classes", nargs="+", required=True,
                     help="Classi nell'ORDINE usato in training (stesso ordine di train.py / test.py)")
-    p.add_argument("--batch_size", type=int, default=32)
+    p.add_argument("--batch_size", type=int, required=True)
     p.add_argument("--max_recordings", type=int, default=None,
                     help="Limite opzionale sul numero di registrazioni da analizzare (utile per debug rapido)")
     p.add_argument("--output_csv", type=str, default="suspicious_recordings_full.csv")
@@ -270,10 +266,10 @@ def apply_transform_to_all_beats(beats_leads_last: np.ndarray, label: str) -> np
 
 def load_model(weights_path: str, num_classes: int, device):
     model = ECG_CNN(
-        hidden_channels=(16, 32, 64),
-        dropout=0.31541099168629816,
+        hidden_channels=(64, 128, 256),
+        dropout=0.1733652434182681,
         num_classes=num_classes,
-        use_mlp_classifier=True,
+        use_mlp_classifier=False,
     ).to(device)
     model.load_state_dict(torch.load(weights_path, map_location=device))
     model.eval()

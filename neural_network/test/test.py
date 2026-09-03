@@ -84,7 +84,7 @@ def load_test_data(data_root: str, label_to_idx: dict, expected_len: int = 500):
         raise FileNotFoundError(f"Cartella segmenti non trovata in: {segments_dir}")
 
     df = pd.read_csv(index_path)
-    required_cols = {"filename", "label", "patient_id"}
+    required_cols = {"filename", "label", "patient_id", "ecg_id"}
     missing = required_cols - set(df.columns)
     if missing:
         raise ValueError(f"Colonne mancanti nel CSV: {sorted(missing)}")
@@ -128,7 +128,7 @@ def load_test_data(data_root: str, label_to_idx: dict, expected_len: int = 500):
 
         segments.append(seg)
         labels.append(label_to_idx[str(row.label)])
-        recording_ids.append(str(row.patient_id))
+        recording_ids.append(str(row.ecg_id))
 
     if skipped_missing:
         print(f"Attenzione: {skipped_missing} file segmenti mancanti su disco, saltati.")
@@ -232,9 +232,9 @@ def main():
             node_feat_dim=64,
             hidden_dim=128,
             num_classes=num_classes,
-            num_gnn_layers=2,
+            num_gnn_layers=1,
             use_attention=False,
-            dropout=0.23116470198461048,
+            dropout=0.3215339410420405,
             use_mlp_classifier=False
         ).to(device)
 
