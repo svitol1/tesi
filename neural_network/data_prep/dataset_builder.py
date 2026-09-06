@@ -35,6 +35,13 @@ i battiti validi di ogni registrazione test (non solo 2), etichettati
 "normal" senza alcuna trasformazione: sono registrazioni reali,
 presumibilmente correttamente posizionate.
 
+ESCLUSIONE REGISTRAZIONI CONFERMATE ERRATE
+-------------------------------------------
+E' possibile escludere dalla costruzione (train/val/test) le registrazioni
+che erano state segnalate come "candidate" a malposizionamento e poi
+CONFERMATE (colonna confirmed=True) da un giro di verifica col modello,
+tramite --excluded_csv_dir (vedi load_excluded_records()).
+
 Output
 ------
 <output_dir>/train/segments/*.npy + <output_dir>/train/final_dataset_index.csv
@@ -51,7 +58,8 @@ python dataset_builder.py \
     --georgia_root /path/to/georgia \
     --output_dir /path/to/combined_dataset \
     --classes normal RA_LA LA_LL RA_LL V1_V2 \
-    --class_weights 0.5 0.125 0.125 0.125 0.125
+    --class_weights 0.5 0.125 0.125 0.125 0.125 \
+    --excluded_csv_dir /path/to/csv_confirmati
 """
 
 import argparse
@@ -179,6 +187,45 @@ def split_ids(ids: list, train_frac: float, val_frac: float, seed: int):
 
 
 # --------------------------------------------------------------------------
+# Registrazioni da escludere (confermate malposizionate da un giro precedente)
+# --------------------------------------------------------------------------
+
+def load_excluded_records(csv_dir: str, filename_pattern: str = "mislabels.csv") -> set:
+    """Cerca ricorsivamente dentro `csv_dir` tutti i file che si chiamano
+    `filename_pattern`.
+
+    Ogni file deve avere almeno le colonne 'ecg_id' e 'confirmed'.
+    Ritorna l'insieme dei valori di 'ecg_id' per cui confirmed == True,
+    unendo i risultati di tutti i file trovati.
+
+    NOTA: nei CSV la colonna 'ecg_id' e' gia' nel formato usato internamente
+    da questo script come record_key (es. 'ptbxl_14144', 'georgia_E00238'),
+    quindi puo' essere confrontata direttamente senza trasformazioni.
+    """
+    csv_paths = sorted(Path(csv_dir).rglob(filename_pattern))
+    if not csv_paths:
+        raise FileNotFoundError(
+            f"Nessun file '{filename_pattern}' trovato ricorsivamente in {csv_dir}"
+        )
+
+    excluded = set()
+    for csv_path in csv_paths:
+        df = pd.read_csv(csv_path)
+        missing = {"ecg_id", "confirmed"} - set(df.columns)
+        if missing:
+            raise ValueError(f"Il file {csv_path} non contiene le colonne richieste: {missing}")
+
+        confirmed = df["confirmed"]
+        if confirmed.dtype != bool:
+            # Gestisce il caso in cui la colonna sia stata letta come stringa
+            confirmed = confirmed.astype(str).str.strip().str.lower().isin(["true", "1"])
+
+        excluded.update(df.loc[confirmed, "ecg_id"].astype(str).tolist())
+
+    return excluded
+
+
+# --------------------------------------------------------------------------
 # Caricamento + preprocessing per singola registrazione
 # --------------------------------------------------------------------------
 
@@ -259,9 +306,15 @@ def assign_classes_per_recording(record_keys: list, classes: list, weights: list
 
 def process_split(split_name, ptbxl_root, ptbxl_meta, ptbxl_ecg_ids,
                    georgia_records, georgia_ids_set,
-                   output_dir, classes=None, class_weights=None, seed=42):
+                   output_dir, classes=None, class_weights=None, seed=42,
+                   excluded_keys=None):
     """Processa un intero split (train / val / test) per entrambi i dataset
-    e salva segmenti + indice CSV."""
+    e salva segmenti + indice CSV.
+
+    excluded_keys : set opzionale di record_key (es. 'ptbxl_14144',
+        'georgia_E00238') da saltare completamente, tipicamente le
+        registrazioni confermate malposizionate da un giro precedente
+        (vedi load_excluded_records)."""
     out_root = os.path.join(output_dir, split_name)
     segments_dir = os.path.join(out_root, "segments")
     os.makedirs(segments_dir, exist_ok=True)
@@ -272,6 +325,17 @@ def process_split(split_name, ptbxl_root, ptbxl_meta, ptbxl_ecg_ids,
     skipped = []
 
     georgia_subset = [(name, path) for name, path in georgia_records if name in georgia_ids_set]
+
+    if excluded_keys:
+        n_ptbxl_before = len(ptbxl_ecg_ids)
+        ptbxl_ecg_ids = [ecg_id for ecg_id in ptbxl_ecg_ids
+                          if f"ptbxl_{ecg_id}" not in excluded_keys]
+        n_georgia_before = len(georgia_subset)
+        georgia_subset = [(name, path) for name, path in georgia_subset
+                           if f"georgia_{name}" not in excluded_keys]
+        print(f"[{split_name}] Registrazioni escluse (confirmed=True): "
+              f"PTB-XL {n_ptbxl_before - len(ptbxl_ecg_ids)}, "
+              f"Georgia {n_georgia_before - len(georgia_subset)}")
 
     if not is_test:
         # ---- Prima fase: raccogliamo 2 battiti grezzi per registrazione
@@ -436,6 +500,16 @@ def main():
     parser.add_argument("--train_frac", type=float, default=0.8)
     parser.add_argument("--val_frac", type=float, default=0.1)
     parser.add_argument("--seed", type=int, default=42)
+    parser.add_argument("--excluded_csv_dir", default=None,
+                         help="Directory radice sotto cui cercare RICORSIVAMENTE i file "
+                              "'mislabels.csv' (colonne 'ecg_id' e 'confirmed') prodotti dal "
+                              "giro di verifica del modello, es. find_mislabel/2_class/*/mislabels.csv. "
+                              "Se specificata, le registrazioni con confirmed=True vengono "
+                              "escluse da tutti gli split (train/val/test). Se omessa, "
+                              "nessuna esclusione viene applicata (comportamento invariato).")
+    parser.add_argument("--excluded_csv_filename", default="mislabels.csv",
+                         help="Nome del file da cercare ricorsivamente dentro --excluded_csv_dir "
+                              "(default: 'mislabels.csv').")
     args = parser.parse_args()
 
     weights = args.class_weights if args.class_weights else [1.0] * len(args.classes)
@@ -444,6 +518,12 @@ def main():
     unknown = set(args.classes) - set(MISPLACEMENT_TRANSFORMS.keys())
     if unknown:
         raise ValueError(f"Classi sconosciute: {unknown}")
+
+    excluded_keys = None
+    if args.excluded_csv_dir:
+        print("--> Caricamento registrazioni da escludere (confirmed=True)...")
+        excluded_keys = load_excluded_records(args.excluded_csv_dir, args.excluded_csv_filename)
+        print(f"  Registrazioni totali da escludere: {len(excluded_keys)}")
 
     print("--> Caricamento metadati PTB-XL...")
     ptbxl_meta = load_ptbxl_metadata(args.ptbxl_root)
@@ -485,6 +565,7 @@ def main():
             classes=args.classes,
             class_weights=weights,
             seed=args.seed,
+            excluded_keys=excluded_keys,
         )
 
 
