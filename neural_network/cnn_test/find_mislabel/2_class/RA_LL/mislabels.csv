@@ -1,5 +1,0 @@
-ecg_id,patient_id,source,n_beats,raw_pred_label,raw_pred_ratio,is_candidate,confirm_pred_label,confirm_pred_ratio,confirmed
-ptbxl_21687,ptbxl_9082.0,ptbxl,9,RA_LL,0.6666666666666666,True,RA_LL,1.0,False
-ptbxl_7489,ptbxl_16814.0,ptbxl,14,RA_LL,0.7142857142857143,True,RA_LL,0.5,False
-georgia_E05768,georgia_E05768,georgia,13,RA_LL,1.0,True,RA_LL,0.7692307692307693,False
-georgia_E09737,georgia_E09737,georgia,10,RA_LL,0.7,True,RA_LL,0.7,False
