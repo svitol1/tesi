@@ -1,0 +1,7 @@
+hidden_dim=(64, 128, 256)
+dropout=0.40559281597603847
+use_mlp_classifier=True
+
+batch_size=16
+lr=0.00020414617834552088
+weight_decay=2.289472931901546e-06

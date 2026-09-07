@@ -1,0 +1,8 @@
+hidden_channels=(16, 32, 64),
+dropout=0.31541099168629816,
+num_classes=NUM_CLASSES,
+use_mlp_classifier=True
+
+batch_size=16
+lr=0.0001856687035953322
+weight_decay=0.0001246938677568602

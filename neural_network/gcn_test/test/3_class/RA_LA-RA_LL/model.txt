@@ -1,0 +1,8 @@
+hidden_dim=256
+num_gnn_layers=1
+dropout=0.2039750845657315
+use_mlp_classifier=True
+
+batch_size=64
+lr=0.0006914167960390046
+weight_decay=2.9936510893529046e-06

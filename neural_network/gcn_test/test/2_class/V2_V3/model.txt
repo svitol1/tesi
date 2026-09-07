@@ -1,0 +1,7 @@
+hidden_dim=64
+num_gnn_layers=2
+dropout=0.4983561959512962
+
+batch_size=64
+lr=0.0005303933849261907
+weight_decay=1.3724580467828559e-06

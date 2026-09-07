@@ -1,0 +1,7 @@
+hidden_dims=(1024, 512, 128)
+dropout=0.2192662724262657
+use_batchnorm=True
+
+batch_size=32
+lr=0.00017558179528865002
+weight_decay=2.7127035795432444e-06
