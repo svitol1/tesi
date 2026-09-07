@@ -1,3 +1,4 @@
+ecg_id,patient_id,source,n_beats,raw_pred_label,raw_pred_ratio,is_candidate,confirm_pred_label,confirm_pred_ratio,confirmed
 ptbxl_10012,ptbxl_6185.0,ptbxl,10,V5_V6,1.0,True,V5_V6,1.0,False
 ptbxl_10070,ptbxl_5977.0,ptbxl,7,V5_V6,0.5714285714285714,True,V5_V6,0.5714285714285714,False
 ptbxl_10322,ptbxl_7372.0,ptbxl,7,V5_V6,0.5714285714285714,True,V5_V6,1.0,False
