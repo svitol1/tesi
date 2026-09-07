@@ -20,8 +20,8 @@ e' definito in modo robusto dell'intera registrazione, non di un singolo beat.
 
 Logica
 ------
-Per ogni registrazione appartenente al train set (identificata a partire da
-final_dataset_index.csv):
+Per ogni registrazione appartenente al train (o qualsiasi set vengano inserito)
+set (identificata a partire da final_dataset_index.csv):
 
 1. Si ricarica il segnale grezzo (NON trasformato) da PTB-XL/Georgia e si
    estraggono tutti i beat validi (stessa pipeline di extract_test_beats).
@@ -124,8 +124,9 @@ def parse_args():
     )
     p.add_argument("--ptbxl_root", type=str, required=True)
     p.add_argument("--georgia_root", type=str, required=True)
-    p.add_argument("--train_index_csv", type=str, required=True,
-                    help="Path a final_dataset_index.csv dello split TRAIN (output di dataset_builder.py)")
+    p.add_argument("--index_csv", type=str, required=True,
+                    help="Path a final_dataset_index.csv dello split che si vuole analizzare"
+                    "(output di dataset_builder.py)")
     p.add_argument("--weights", type=str, required=True, help="Pesi del modello (.pt)")
     p.add_argument("--classes", nargs="+", required=True,
                     help="Classi nell'ORDINE usato in training (stesso ordine di train.py / test.py)")
@@ -267,7 +268,7 @@ def apply_transform_to_all_beats(beats_leads_last: np.ndarray, label: str) -> np
 def load_model(weights_path: str, num_classes: int, device):
     model = ECG_CNN(
         hidden_channels=(64, 128, 256),
-        dropout=0.1733652434182681,
+        dropout=0.17937371217945058,
         num_classes=num_classes,
         use_mlp_classifier=False,
     ).to(device)
@@ -292,8 +293,8 @@ def main():
     print(f"--> Caricamento modello da: {args.weights}")
     model = load_model(args.weights, num_classes, device)
 
-    print(f"--> Risoluzione registrazioni train set da: {args.train_index_csv}")
-    tasks = get_train_recording_tasks(args.train_index_csv, args.ptbxl_root, args.georgia_root)
+    print(f"--> Risoluzione registrazioni train set da: {args.index_csv}")
+    tasks = get_train_recording_tasks(args.index_csv, args.ptbxl_root, args.georgia_root)
     print(f"--> {len(tasks)} registrazioni da analizzare.")
 
     if args.max_recordings is not None:
