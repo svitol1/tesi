@@ -1,6 +1,6 @@
-train/
-val/
-test/
+data_prep/train/
+data_prep/val/
+data_prep/test/
 physionet.org/
 
 ecg_gcn_weights.pt
