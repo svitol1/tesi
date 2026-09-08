@@ -1,5 +1,9 @@
 ecg_id,patient_id,source,n_beats,raw_pred_label,raw_pred_ratio,is_candidate,confirm_pred_label,confirm_pred_ratio,confirmed
+ptbxl_13293,ptbxl_10160.0,ptbxl,15,RA_LL,0.9333333333333333,True,RA_LL,0.7333333333333333,False
 ptbxl_21687,ptbxl_9082.0,ptbxl,9,RA_LL,0.6666666666666666,True,RA_LL,1.0,False
 ptbxl_7489,ptbxl_16814.0,ptbxl,14,RA_LL,0.7142857142857143,True,RA_LL,0.5,False
+ptbxl_853,ptbxl_3750.0,ptbxl,11,RA_LL,1.0,True,normal,1.0,True
+georgia_E02039,georgia_E02039,georgia,10,RA_LL,0.5,True,normal,0.9,True
 georgia_E05768,georgia_E05768,georgia,13,RA_LL,1.0,True,RA_LL,0.7692307692307693,False
+georgia_E08381,georgia_E08381,georgia,12,RA_LL,1.0,True,RA_LL,1.0,False
 georgia_E09737,georgia_E09737,georgia,10,RA_LL,0.7,True,RA_LL,0.7,False

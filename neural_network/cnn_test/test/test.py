@@ -224,8 +224,8 @@ def main():
     # 3. Caricamento Modello e Pesi
     print(f"--> Caricamento pesi modello da: {args.weights}")
     model = ECG_CNN(
-            hidden_channels=(64, 128, 256),
-            dropout=0.17937371217945058,
+            hidden_channels=(32, 64, 128),
+            dropout=0.18281203311944025,
             num_classes=num_classes,
             use_mlp_classifier=False
         ).to(device)

@@ -1,0 +1,9 @@
+ecg_id,patient_id,source,n_beats,raw_pred_label,raw_pred_ratio,is_candidate,confirm_pred_label,confirm_pred_ratio,confirmed
+ptbxl_17742,ptbxl_2904.0,ptbxl,12,V3_V4,0.9166666666666666,True,V3_V4,0.9166666666666666,False
+ptbxl_3870,ptbxl_15051.0,ptbxl,8,V3_V4,0.75,True,V3_V4,1.0,False
+ptbxl_4612,ptbxl_4428.0,ptbxl,10,V3_V4,0.8,True,V3_V4,1.0,False
+ptbxl_544,ptbxl_13772.0,ptbxl,11,V3_V4,1.0,True,normal,0.8181818181818182,True
+ptbxl_8208,ptbxl_12834.0,ptbxl,12,V3_V4,1.0,True,normal,1.0,True
+ptbxl_8441,ptbxl_9819.0,ptbxl,5,V3_V4,1.0,True,normal,1.0,True
+ptbxl_9926,ptbxl_12573.0,ptbxl,14,V3_V4,0.6428571428571429,True,normal,0.6428571428571429,True
+georgia_E07161,georgia_E07161,georgia,9,V3_V4,0.7777777777777778,True,normal,0.5555555555555556,True

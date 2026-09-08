@@ -3,8 +3,8 @@ FASE 2 - VELOCE - da rieseguire quante volte serve per ogni combinazione
 di --classes / --class_weights / split / esclusioni.
 
 Costruisce il dataset combinato PTB-XL + Georgia per l'addestramento e la
-valutazione del modello di rilevamento malposizionamento elettrodi, a
-partire dalla CACHE prodotta da precompute_cache.py (segnali preprocessati
+valutazione del modello di rilevamento malposizionamento elettrodi, A
+PARTIRE DALLA CACHE prodotta da precompute_cache.py (segnali preprocessati
 + picchi R gia' rilevati). Non tocca piu' i dati grezzi: nessun I/O wfdb,
 nessun filtraggio, nessun Pan-Tompkins, quindi e' molto piu' rapida della
 fase 1.
@@ -37,7 +37,9 @@ ESCLUSIONE REGISTRAZIONI CONFERMATE ERRATE
 -------------------------------------------
 --excluded_csv_dir esclude dalla costruzione (in tutti gli split) le
 registrazioni segnalate come "candidate" e poi CONFERMATE (confirmed=True)
-da un giro di verifica col modello.
+da un giro di verifica col modello. Vive in questa fase (non nella cache)
+apposta: la lista di esclusioni cambia man mano che si confermano nuovi
+casi, e non deve richiedere di rifare il caching.
 
 Output
 ------
@@ -50,7 +52,7 @@ ECGGraphDataset senza bisogno di trasposizioni successive.
 
 Uso
 ---
-# Quando cambiano dati grezzi/preprocessing:
+# una tantum, o quando cambiano dati grezzi/preprocessing:
 python precompute_cache.py --ptbxl_root ... --georgia_root ... --cache_dir /path/to/cache
 
 # quante volte serve, per ogni combinazione di classi/pesi/esclusioni:
@@ -110,11 +112,27 @@ def process_split(split_name, cache_dir, meta_subset, output_dir,
     beat_counter = 0
     skipped = []
 
+    # Le righe status='failed' non entrano nello split: il vecchio
+    # precompute_cache.py non le scriveva in metadata.csv. Restano comunque
+    # disponibili nel metadata completo per diagnosi e conteggi.
+    n_slot = len(meta_subset)
+    failed_mask = meta_subset["status"] != "ok"
+    skipped.extend(
+        (rk, f"fallita_in_cache: {motivo}")
+        for rk, motivo in zip(meta_subset.loc[failed_mask, "record_key"],
+                               meta_subset.loc[failed_mask, "motivo"])
+    )
+    meta_subset = meta_subset[~failed_mask]
+    n_failed_in_cache = int(failed_mask.sum())
+
     if excluded_keys:
         n_before = len(meta_subset)
         meta_subset = meta_subset[~meta_subset["record_key"].isin(excluded_keys)]
         print(f"[{split_name}] Registrazioni escluse (confirmed=True): "
               f"{n_before - len(meta_subset)}")
+
+    print(f"[{split_name}] Slot assegnati dallo split: {n_slot} | "
+          f"fallite in cache: {n_failed_in_cache} | utilizzabili: {len(meta_subset)}")
 
     if not is_test:
         # ---- Prima fase: raccogliamo 2 battiti grezzi per registrazione
@@ -251,9 +269,13 @@ def main():
         print(f"  Registrazioni totali da escludere: {len(excluded_keys)}")
 
     print("--> Caricamento metadata dalla cache...")
+    # metadata.csv contiene anche le registrazioni fallite, ma la popolazione
+    # usata per lo split deve restare quella delle sole registrazioni
+    # cachate con successo, come nella pipeline precedente.
     meta = pd.read_csv(os.path.join(args.cache_dir, "metadata.csv"))
-    meta_ptbxl = meta[meta["source"] == "ptbxl"]
-    meta_georgia = meta[meta["source"] == "georgia"]
+    meta_for_split = meta[meta["status"] == "ok"]
+    meta_ptbxl = meta_for_split[meta_for_split["source"] == "ptbxl"]
+    meta_georgia = meta_for_split[meta_for_split["source"] == "georgia"]
 
     print("--> Split train/val/test per PAZIENTE (PTB-XL) e per registrazione (Georgia)...")
     patients_train, patients_val, patients_test = split_ids(

@@ -1,6 +1,7 @@
 data_prep/train/
 data_prep/val/
 data_prep/test/
+data_prep/cache/
 
 physionet.org/
 

@@ -24,7 +24,7 @@ Per ogni registrazione appartenente al train (o qualsiasi set vengano inserito)
 set (identificata a partire da final_dataset_index.csv):
 
 1. Si ricarica il segnale grezzo (NON trasformato) da PTB-XL/Georgia e si
-   estraggono tutti i beat validi (stessa pipeline di extract_test_beats).
+    estraggono tutti i beat validi con rilevamento dei picchi + segment_beats.
 2. Si esegue l'inferenza su tutti i beat e si aggrega con majority voting
    -> "predizione grezza" per l'intera registrazione.
 3. Se P_raw != "normal", la registrazione e' un CANDIDATO: il modello,
@@ -82,31 +82,29 @@ except ImportError:
     from cnn_model import ECG_CNN
 
 try:
-    from data_prep.dataset_builder import (
+    from data_prep.common import (
         LEAD_NAMES_PTBXL,
         LEAD_NAMES_GEORGIA,
         load_ptbxl_metadata,
         discover_records_georgia,
         load_and_preprocess_ptbxl,
         load_and_preprocess_georgia,
-        extract_test_beats,
+        detect_r_peaks_v1_v5_average,
+        segment_beats,
     )
-    from data_prep.pan_tompkins_algo import detect_r_peaks_pan_tompkins
-    from data_prep.preprocessing import preprocess_ecg
-    from data_prep.lead_misplacement import apply_transform, MISPLACEMENT_TRANSFORMS
+    from data_prep.lead_misplacement import apply_transform
 except ImportError:
-    from data_prep.dataset_builder import (
+    from data_prep.common import (
         LEAD_NAMES_PTBXL,
         LEAD_NAMES_GEORGIA,
         load_ptbxl_metadata,
         discover_records_georgia,
         load_and_preprocess_ptbxl,
         load_and_preprocess_georgia,
-        extract_test_beats,
+        detect_r_peaks_v1_v5_average,
+        segment_beats,
     )
-    from data_prep.pan_tompkins_algo import detect_r_peaks_pan_tompkins
-    from data_prep.preprocessing import preprocess_ecg
-    from data_prep.lead_misplacement import apply_transform, MISPLACEMENT_TRANSFORMS
+    from data_prep.lead_misplacement import apply_transform
 
 NORMAL_LABEL = "normal"
 VOTE_THRESHOLD = 0.50
@@ -218,7 +216,7 @@ def get_train_recording_tasks(train_index_csv: str, ptbxl_root: str, georgia_roo
 def predict_beats(model, beats_leads_last: np.ndarray, device, batch_size: int) -> np.ndarray:
     """
     Esegue l'inferenza su tutti i beat di UNA registrazione.
-    beats_leads_last: (n_beats, T, 12), come ritornato da extract_test_beats.
+    beats_leads_last: (n_beats, T, 12), come ritornato da segment_beats.
     Ritorna l'array degli indici di classe predetti (n_beats,).
     """
     segments = np.transpose(beats_leads_last, (0, 2, 1)).astype(np.float32)  # -> (n_beats, 12, T)
@@ -267,8 +265,8 @@ def apply_transform_to_all_beats(beats_leads_last: np.ndarray, label: str) -> np
 
 def load_model(weights_path: str, num_classes: int, device):
     model = ECG_CNN(
-        hidden_channels=(64, 128, 256),
-        dropout=0.17937371217945058,
+        hidden_channels=(32, 64, 128),
+        dropout=0.18281203311944025,
         num_classes=num_classes,
         use_mlp_classifier=False,
     ).to(device)
@@ -311,16 +309,15 @@ def main():
             if np.isnan(signal).any():
                 skipped.append((ecg_id, "segnale_contiene_NaN"))
                 continue
-            beats_result = extract_test_beats(signal, task["lead_names"])
         except Exception as e:
             skipped.append((ecg_id, f"errore: {e}"))
             continue
 
-        if beats_result is None:
+        r_peaks = detect_r_peaks_v1_v5_average(signal, task["lead_names"])
+        beats, _ = segment_beats(signal, r_peaks)
+        if beats.shape[0] == 0:
             skipped.append((ecg_id, "nessun_battito_valido"))
             continue
-
-        beats, _ = beats_result  # (n_beats, T, 12)
         n_beats = beats.shape[0]
 
         # ---- Passo 1: predizione grezza (registrazione presunta corretta) ----

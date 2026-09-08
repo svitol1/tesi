@@ -1,5 +1,5 @@
 """
-FASE 1 - LENTA - eseguirla una sola volta (o solo quando cambiano i dati
+FASE 1/2 - LENTA - eseguirla una sola volta (o solo quando cambiano i dati
 grezzi, il preprocessing o l'algoritmo di rilevamento picchi).
 
 Legge le registrazioni grezze PTB-XL + Georgia, applica il preprocessing
@@ -13,11 +13,11 @@ Legge le registrazioni grezze PTB-XL + Georgia, applica il preprocessing
                                             errori di lettura) e motivo
 
 Questa fase NON applica split train/val/test, esclusioni, ne' sa nulla di
-classi/trasformazioni. Cache di TUTTE le registrazioni valide di entrambi i
+classi/trasformazioni: cache TUTTE le registrazioni valide di entrambi i
 dataset. Tutto il resto (split, esclusioni confirmed=True, class_weights,
 trasformazioni di malposizionamento) e' responsabilita' di
 dataset_builder.py, che legge da questa cache e puo' essere rieseguito
-quante volte serve in poco tempo.
+quante volte serve in pochi secondi/minuti invece di ore.
 
 Uso
 ---
@@ -57,31 +57,37 @@ def build_cache(ptbxl_root, georgia_root, cache_dir):
     os.makedirs(peaks_dir, exist_ok=True)
 
     rows = []
-    skipped = []
-
     print("--> Caricamento metadati PTB-XL...")
     ptbxl_meta = load_ptbxl_metadata(ptbxl_root)
 
     for ecg_id, row in tqdm(ptbxl_meta.iterrows(), total=len(ptbxl_meta), desc="PTB-XL"):
         record_key = f"ptbxl_{ecg_id}"
+        # IMPORTANTE: patient_id e' noto SUBITO dai metadati grezzi, prima
+        # di qualunque tentativo di lettura/preprocessing. Registriamo una
+        # riga per QUESTA registrazione anche se il preprocessing fallisce,
+        # cosi' dataset_builder.py puo' calcolare lo split sulla stessa
+        # popolazione di pazienti completa usata dallo script originale
+        # (split prima, scarti dopo) invece che su un sottoinsieme gia'
+        # ridotto dalle registrazioni fallite qui in cache.
         try:
             signal = load_and_preprocess_ptbxl(ptbxl_root, row, notch_freq=50.0)
             if np.isnan(signal).any():
-                skipped.append((record_key, "segnale_contiene_NaN"))
-                continue
+                raise ValueError("segnale_contiene_NaN")
             r_peaks = detect_r_peaks_v1_v5_average(signal, LEAD_NAMES_PTBXL)
         except Exception as e:
-            skipped.append((record_key, f"errore: {e}"))
+            rows.append({
+                "record_key": record_key, "source": "ptbxl",
+                "patient_id": row["patient_id"], "status": "failed",
+                "motivo": str(e), "n_samples": None, "n_r_peaks": None,
+            })
             continue
 
         np.save(os.path.join(signals_dir, f"{record_key}.npy"), signal)
         np.save(os.path.join(peaks_dir, f"{record_key}.npy"), r_peaks)
         rows.append({
-            "record_key": record_key,
-            "source": "ptbxl",
-            "patient_id": row["patient_id"],
-            "n_samples": signal.shape[0],
-            "n_r_peaks": len(r_peaks),
+            "record_key": record_key, "source": "ptbxl",
+            "patient_id": row["patient_id"], "status": "ok",
+            "motivo": "", "n_samples": signal.shape[0], "n_r_peaks": len(r_peaks),
         })
 
     print("--> Scoperta registrazioni Georgia...")
@@ -92,32 +98,37 @@ def build_cache(ptbxl_root, georgia_root, cache_dir):
         try:
             signal = load_and_preprocess_georgia(record_path, notch_freq=60.0)
             if np.isnan(signal).any():
-                skipped.append((record_key, "segnale_contiene_NaN"))
-                continue
+                raise ValueError("segnale_contiene_NaN")
             r_peaks = detect_r_peaks_v1_v5_average(signal, LEAD_NAMES_GEORGIA)
         except Exception as e:
-            skipped.append((record_key, f"errore: {e}"))
+            rows.append({
+                "record_key": record_key, "source": "georgia",
+                "patient_id": name, "status": "failed",  # per Georgia patient_id == ecg_id
+                "motivo": str(e), "n_samples": None, "n_r_peaks": None,
+            })
             continue
 
         np.save(os.path.join(signals_dir, f"{record_key}.npy"), signal)
         np.save(os.path.join(peaks_dir, f"{record_key}.npy"), r_peaks)
         rows.append({
-            "record_key": record_key,
-            "source": "georgia",
-            "patient_id": name,  # per Georgia patient_id == ecg_id
-            "n_samples": signal.shape[0],
-            "n_r_peaks": len(r_peaks),
+            "record_key": record_key, "source": "georgia",
+            "patient_id": name, "status": "ok",
+            "motivo": "", "n_samples": signal.shape[0], "n_r_peaks": len(r_peaks),
         })
 
     metadata_df = pd.DataFrame(rows)
     metadata_df.to_csv(os.path.join(cache_dir, "metadata.csv"), index=False)
-    pd.DataFrame(skipped, columns=["record_key", "motivo"]).to_csv(
-        os.path.join(cache_dir, "skipped_records.csv"), index=False)
 
+    n_ok = (metadata_df["status"] == "ok").sum()
+    n_failed = (metadata_df["status"] == "failed").sum()
     print("\nCache completata.")
-    print(f"  Registrazioni cachate : {len(rows)}")
-    print(f"  Registrazioni scartate: {len(skipped)}")
-    print(f"  Cartella cache        : {cache_dir}")
+    print(f"  Registrazioni cachate con successo: {n_ok}")
+    print(f"  Registrazioni fallite (in metadata ma senza signal/peaks): {n_failed}")
+    print(f"  Cartella cache: {cache_dir}")
+    print("  Nota: metadata.csv contiene una riga per OGNI registrazione scoperta, "
+          "comprese quelle fallite (status='failed'), cosi' che dataset_builder.py "
+          "possa calcolare lo split sulla popolazione completa. I file .npy in "
+          "signals/ e peaks/ esistono solo per status='ok'.")
 
 
 def main():
