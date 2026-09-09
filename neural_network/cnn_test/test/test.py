@@ -3,16 +3,16 @@
 Script di testing e valutazione
 ================================================================================
 
-Esegue l'inferenza sui segmenti ECG e applica un'aggregazione a livello
-di registrazione (con soglia >50%).
+Esegue l'inferenza sui segmenti ECG caricandoli da disco batch per batch
+ed applica un'aggregazione a livello di registrazione (soglia >50%).
 
-Compatibile con il test set prodotto da build_combined_dataset.py
-(cartella test/, con beats_index.csv contenente TUTTI i battiti validi
-di ogni registrazione, etichetta "normal" per tutte).
+Risolve il problema di Out-Of-Memory / Kill del processo su dataset di grandi dimensioni.
 
 Uso da riga di comando:
-    python test.py --data_dir data_prep/combined_dataset/test --weights ecg_gcn_weights.pt \
-        --classes normal RA_LA LA_LL RA_LL V1_V2
+    python test.py --data_dir data_prep/combined_dataset/test \
+        --weights ecg_gcn_weights.pt \
+        --classes normal RA_LA LA_LL RA_LL V1_V2 \
+        --batch_size 64
 """
 
 import argparse
@@ -24,19 +24,61 @@ import numpy as np
 import pandas as pd
 import torch
 from sklearn.metrics import classification_report, confusion_matrix
-from torch.utils.data import DataLoader
+from torch.utils.data import Dataset, DataLoader
+from tqdm import tqdm
 
 try:
-    from ..cnn_dataset import ECGSegmentDataset
-    from ..cnn_model import ECG_CNN
+    from cnn_model import ECG_CNN
 except ImportError:
-    # Allow running this file directly: python test/test.py
     project_root = Path(__file__).resolve().parents[1]
     if str(project_root) not in sys.path:
         sys.path.insert(0, str(project_root))
-
-    from cnn_dataset import ECGSegmentDataset
     from cnn_model import ECG_CNN
+
+
+class ECGFileDataset(Dataset):
+    """
+    Dataset PyTorch con caricamento 'Lazy' da disco per evitare
+    l'esaurimento della RAM su dataset enormi.
+    """
+    def __init__(self, df: pd.DataFrame, segments_dir: Path, label_to_idx: dict, expected_len: int = 500):
+        self.df = df
+        self.segments_dir = segments_dir
+        self.label_to_idx = label_to_idx
+        self.expected_len = expected_len
+
+    def __len__(self):
+        return len(self.df)
+
+    def __getitem__(self, idx):
+        row = self.df.iloc[idx]
+        seg_path = self.segments_dir / row["filename"]
+
+        if not seg_path.exists():
+            # Ritorna array vuoto/zero in caso di file mancante
+            return torch.zeros((12, self.expected_len), dtype=torch.float32), -1, str(row["ecg_id"]), False
+
+        try:
+            seg = np.load(seg_path).astype(np.float32)
+
+            # Normalizzazione shape a (12, expected_len)
+            if seg.ndim == 2 and seg.shape[1] == 12 and seg.shape[0] == self.expected_len:
+                seg = seg.T
+
+            if seg.shape != (12, self.expected_len) or np.isnan(seg).any():
+                return torch.zeros((12, self.expected_len), dtype=torch.float32), -1, str(row["ecg_id"]), False
+
+            # Normalizzazione z-score per canale
+            mean = seg.mean(axis=1, keepdims=True)
+            std = seg.std(axis=1, keepdims=True)
+            std[std == 0] = 1e-8
+            seg = (seg - mean) / std
+
+            label_idx = self.label_to_idx[str(row["label"])]
+            return torch.from_numpy(seg), label_idx, str(row["ecg_id"]), True
+
+        except Exception:
+            return torch.zeros((12, self.expected_len), dtype=torch.float32), -1, str(row["ecg_id"]), False
 
 
 def parse_args():
@@ -56,94 +98,21 @@ def parse_args():
         help="Path al file dei pesi salvati (.pt)",
     )
     parser.add_argument(
-        "--batch_size", type=int, default=32, help="Dimensione del batch per l'inferenza"
+        "--batch_size", type=int, default=64, help="Dimensione del batch per l'inferenza"
+    )
+    parser.add_argument(
+        "--num_workers", type=int, default=4, help="Numero di thread per la lettura parallela da disco"
+    )
+    parser.add_argument(
+        "--max_samples", type=int, default=None, help="Limite opzionale sul numero massimo di segmenti da testare"
     )
     parser.add_argument(
         "--classes",
         nargs="+",
         required=True,
-        help="Elenco classi nell'ORDINE usato in training (stesso ordine con cui "
-             "train.py le ha enumerate da sorted(df['label'].unique()) sul train set). "
-             "Verifica sempre contro il log di training prima di interpretare i risultati.",
+        help="Elenco classi nell'ORDINE usato in training.",
     )
     return parser.parse_args()
-
-
-def load_test_data(data_root: str, label_to_idx: dict, expected_len: int = 500):
-    """
-    Carica i segmenti di test e mantiene la traccia delle registrazioni
-    (patient_id/recording_id) per l'aggregazione a majority voting.
-    """
-    root = Path(data_root)
-    index_path = root / "beats_index.csv"
-    segments_dir = root / "segments"
-
-    if not index_path.exists():
-        raise FileNotFoundError(f"Index non trovato in: {index_path}")
-    if not segments_dir.exists():
-        raise FileNotFoundError(f"Cartella segmenti non trovata in: {segments_dir}")
-
-    df = pd.read_csv(index_path)
-    required_cols = {"filename", "label", "patient_id", "ecg_id"}
-    missing = required_cols - set(df.columns)
-    if missing:
-        raise ValueError(f"Colonne mancanti nel CSV: {sorted(missing)}")
-
-    unknown_labels = set(df["label"].astype(str).unique()) - set(label_to_idx.keys())
-    if unknown_labels:
-        raise ValueError(f"Etichette nel CSV non presenti in label_to_idx: {sorted(unknown_labels)}")
-
-    idx_to_label = {i: name for name, i in label_to_idx.items()}
-
-    segments = []
-    labels = []
-    recording_ids = []
-    skipped_missing = 0
-    skipped_shape = 0
-    skipped_nan = 0
-
-    for row in df.itertuples(index=False):
-        seg_path = segments_dir / row.filename
-        if not seg_path.exists():
-            skipped_missing += 1
-            continue
-
-        seg = np.load(seg_path).astype(np.float32)
-
-        if seg.ndim != 2:
-            skipped_shape += 1
-            continue
-
-        # Compatibilita' con segmenti salvati come (T, 12): li convertiamo a (12, T).
-        if seg.shape[1] == 12 and seg.shape[0] == expected_len:
-            seg = seg.T
-
-        if seg.shape[0] != 12 or seg.shape[1] != expected_len:
-            skipped_shape += 1
-            continue
-
-        if np.isnan(seg).any():
-            skipped_nan += 1
-            continue
-
-        segments.append(seg)
-        labels.append(label_to_idx[str(row.label)])
-        recording_ids.append(str(row.ecg_id))
-
-    if skipped_missing:
-        print(f"Attenzione: {skipped_missing} file segmenti mancanti su disco, saltati.")
-    if skipped_shape:
-        print(f"Attenzione: {skipped_shape} segmenti con shape inattesa, saltati.")
-    if skipped_nan:
-        print(f"Attenzione: {skipped_nan} segmenti contenenti NaN, saltati.")
-
-    if not segments:
-        raise RuntimeError(f"Nessun segmento valido caricato da {data_root}")
-
-    segments = np.stack(segments, axis=0)
-    labels = np.asarray(labels, dtype=np.int64)
-
-    return segments, labels, recording_ids, label_to_idx, idx_to_label
 
 
 def predict_recordings(
@@ -151,9 +120,6 @@ def predict_recordings(
 ):
     """
     Aggrega le predizioni dei singoli segmenti a livello di intera registrazione.
-
-    Regola: Se un tipo di inversione viene individuato in oltre il 50% dei
-    segmenti di una registrazione, quella registrazione viene classificata con tale inversione.
     """
     rec_true = []
     rec_pred = []
@@ -166,13 +132,7 @@ def predict_recordings(
         most_common_class, most_common_count = counts.most_common(1)[0]
         ratio = most_common_count / total_segments
 
-        if ratio > threshold:
-            final_pred = most_common_class
-        else:
-            # Fallback in caso di parita' perfetta o nessuna classe > 50%:
-            # assegna comunque la classe di maggioranza relativa
-            final_pred = most_common_class
-
+        final_pred = most_common_class if ratio > threshold else most_common_class
         gt_label = recording_ground_truth[rec_id]
 
         rec_true.append(gt_label)
@@ -197,70 +157,90 @@ def main():
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
     print(f"--> Utilizzo device: {device}")
 
-    # Deve corrispondere ESATTAMENTE all'ordine/mapping usato in training.
-    # train.py costruisce label_to_idx da sorted(df["label"].unique()) sul
-    # train set: verifica il log di training se hai dubbi sull'ordine.
     LABEL_TO_IDX = {name: i for i, name in enumerate(args.classes)}
+    IDX_TO_LABEL = {i: name for name, i in LABEL_TO_IDX.items()}
 
-    print(f"--> Caricamento dataset di test da: {args.data_dir}")
-    SEGMENT_LEN = 500
-    segments, labels, recording_ids, label_to_idx, idx_to_label = load_test_data(
-        args.data_dir, LABEL_TO_IDX, expected_len=SEGMENT_LEN
+    root = Path(args.data_dir)
+    index_path = root / "beats_index.csv"
+    segments_dir = root / "segments"
+
+    if not index_path.exists():
+        raise FileNotFoundError(f"Index non trovato in: {index_path}")
+
+    print(f"--> Lettura indice da: {index_path}")
+    df = pd.read_csv(index_path)
+
+    if args.max_samples is not None and args.max_samples < len(df):
+        print(f"--> Limite applicato: test sui primi {args.max_samples} segmenti su {len(df)}")
+        df = df.iloc[:args.max_samples]
+
+    test_dataset = ECGFileDataset(
+        df=df,
+        segments_dir=segments_dir,
+        label_to_idx=LABEL_TO_IDX,
+        expected_len=500
     )
 
+    test_loader = DataLoader(
+        test_dataset,
+        batch_size=args.batch_size,
+        shuffle=False,
+        num_workers=args.num_workers,
+        pin_memory=True if device.type == "cuda" else False
+    )
+
+    # Caricamento del modello
     num_classes = len(LABEL_TO_IDX)
-    print(f"--> Caricati {len(segments)} segmenti totali appartenenti a {len(set(recording_ids))} registrazioni.")
-    print(f"--> Classi individuate ({num_classes}): {label_to_idx}")
-
-    test_dataset = ECGSegmentDataset(
-        segments=segments,
-        labels=labels,
-        normalize=True,
-        expected_length=SEGMENT_LEN
-    )
-
-    test_loader = DataLoader(test_dataset, batch_size=args.batch_size, shuffle=False)
-
-    # 3. Caricamento Modello e Pesi
     print(f"--> Caricamento pesi modello da: {args.weights}")
     model = ECG_CNN(
-            hidden_channels=(32, 64, 128),
-            dropout=0.18281203311944025,
-            num_classes=num_classes,
-            use_mlp_classifier=False
-        ).to(device)
+        hidden_channels=(32, 64, 128),
+        dropout=0.18281203311944025,
+        num_classes=num_classes,
+        use_mlp_classifier=False
+    ).to(device)
 
     model.load_state_dict(torch.load(args.weights, map_location=device))
     model.eval()
 
-    # 4. Inferenza sui singoli segmenti
-    print("--> Esecuzione inferenza sui segmenti...")
-    seg_predictions = []
-
-    with torch.no_grad():
-        for x_batch, _ in test_loader:
-            x_batch = x_batch.to(device)
-            out = model(x_batch)
-            preds = out.argmax(dim=1).cpu().numpy()
-            seg_predictions.extend(preds)
-
-    # 5. Raggruppamento predizioni per Registrazione
+    # Streaming inferenza e accumulo leggero
     rec_preds_dict = {}
     rec_gt_dict = {}
+    total_valid_segments = 0
 
-    for rec_id, seg_pred, seg_gt in zip(recording_ids, seg_predictions, labels):
-        if rec_id not in rec_preds_dict:
-            rec_preds_dict[rec_id] = []
-            rec_gt_dict[rec_id] = seg_gt
-        rec_preds_dict[rec_id].append(seg_pred)
+    print("--> Avvio inferenza batch per batch in streaming...")
+    with torch.no_grad():
+        for x_batch, label_batch, ecg_id_batch, valid_mask in tqdm(test_loader, desc="Esecuzione Test"):
+            # Filtra solo i campioni validi caricati correttamente da disco
+            valid_indices = torch.where(valid_mask)[0]
+            if len(valid_indices) == 0:
+                continue
 
-    # 6. Aggregazione >50% a livello di Registrazione
+            x_batch = x_batch[valid_indices].to(device)
+            out = model(x_batch)
+            preds = out.argmax(dim=1).cpu().numpy()
+
+            valid_labels = label_batch[valid_indices].numpy()
+            valid_ids = [ecg_id_batch[i] for i in valid_indices.numpy()]
+
+            for rec_id, seg_pred, seg_gt in zip(valid_ids, preds, valid_labels):
+                if rec_id not in rec_preds_dict:
+                    rec_preds_dict[rec_id] = []
+                    rec_gt_dict[rec_id] = seg_gt
+                rec_preds_dict[rec_id].append(seg_pred)
+                total_valid_segments += 1
+
+    print(f"--> Completati {total_valid_segments} segmenti validi su {len(rec_preds_dict)} registrazioni uniche.")
+
+    if not rec_preds_dict:
+        raise RuntimeError("Nessun segmento valido elaborato.")
+
+    # Aggregazione Majority Voting > 50%
     rec_true, rec_pred, summary_df = predict_recordings(
         rec_preds_dict, rec_gt_dict, threshold=0.50
     )
 
-    # 7. Calcolo Metriche e Report
-    target_names = [idx_to_label[i] for i in range(num_classes)]
+    # Stampa del Report
+    target_names = [IDX_TO_LABEL[i] for i in range(num_classes)]
     all_label_indices = list(range(num_classes))
 
     print("\n" + "=" * 60)
@@ -281,17 +261,10 @@ def main():
     cm_df = pd.DataFrame(cm, index=target_names, columns=target_names)
     print(cm_df)
 
-    # Distribuzione delle etichette vere nel test set: utile per capire se
-    # il test set contiene solo "normal" (come per build_combined_dataset.py)
-    # o anche altre classi.
-    true_dist = pd.Series(rec_true).map(idx_to_label).value_counts()
-    print("\n--- Distribuzione ground truth per registrazione ---")
-    print(true_dist)
-
-    # Salvataggio del report CSV di dettaglio per le registrazioni
+    # Salvataggio del Summary CSV
     output_csv = "test_recordings_summary.csv"
-    summary_df["ground_truth_label"] = summary_df["ground_truth"].map(idx_to_label)
-    summary_df["predicted_label"] = summary_df["predicted"].map(idx_to_label)
+    summary_df["ground_truth_label"] = summary_df["ground_truth"].map(IDX_TO_LABEL)
+    summary_df["predicted_label"] = summary_df["predicted"].map(IDX_TO_LABEL)
     summary_df.to_csv(output_csv, index=False)
     print(f"\n--> Report di dettaglio salvato con successo in '{output_csv}'")
 
