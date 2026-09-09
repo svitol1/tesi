@@ -43,12 +43,22 @@ grezza, se candidata, esito del test di conferma).
 
 Uso
 ---
+    # PTB-XL + Georgia (percorso originale):
     python find_mislabeled_recordings.py \
         --ptbxl_root /path/to/ptbxl \
         --georgia_root /path/to/georgia \
-        --train_index_csv data_prep/combined_dataset/train/final_dataset_index.csv \
+        --index_csv data_prep/combined_dataset/train/final_dataset_index.csv \
         --weights ecg_cnn_weights.pt \
-        --classes normal RA_LA LA_LL RA_LL V1_V2
+        --classes normal RA_LA LA_LL RA_LL V1_V2 \
+        --batch_size 64
+
+    # China/PhysioNet gia' convertito da china_test_builder.py:
+    python find_mislabeled_recordings.py \
+        --china_root /path/to/china_test \
+        --china_csv /path/to/china_recording_predictions.csv \
+        --weights ecg_cnn_weights.pt \
+        --classes normal RA_LA LA_LL RA_LL V1_V2 \
+        --batch_size 64
 ================================================================================
 """
 
@@ -108,6 +118,10 @@ except ImportError:
 
 NORMAL_LABEL = "normal"
 VOTE_THRESHOLD = 0.50
+LEAD_NAMES_PHYSIONET = [
+    "I", "II", "III", "aVR", "aVL", "aVF",
+    "V1", "V2", "V3", "V4", "V5", "V6",
+]
 
 
 # --------------------------------------------------------------------------
@@ -120,9 +134,15 @@ def parse_args():
                     "analizzando l'intera registrazione (majority voting) invece dei soli 2 beat.",
         formatter_class=argparse.RawDescriptionHelpFormatter,
     )
-    p.add_argument("--ptbxl_root", type=str, required=True)
-    p.add_argument("--georgia_root", type=str, required=True)
-    p.add_argument("--index_csv", type=str, required=True,
+    p.add_argument("--ptbxl_root", type=str,
+                   help="Root del database PTB-XL (usato insieme a --georgia_root)")
+    p.add_argument("--georgia_root", type=str,
+                   help="Root del database Georgia (usato insieme a --ptbxl_root)")
+    p.add_argument("--china_root", type=str,
+                   help="Directory del dataset China/PhysioNet generato da china_test_builder.py")
+    p.add_argument("--china_csv", type=str,
+                   help="CSV con le registrazioni China da analizzare (deve contenere recording_id)")
+    p.add_argument("--index_csv", type=str,
                     help="Path a final_dataset_index.csv dello split che si vuole analizzare"
                     "(output di dataset_builder.py)")
     p.add_argument("--weights", type=str, required=True, help="Pesi del modello (.pt)")
@@ -209,6 +229,81 @@ def get_train_recording_tasks(train_index_csv: str, ptbxl_root: str, georgia_roo
     return tasks
 
 
+def get_china_recording_tasks(china_root: str, china_csv: str):
+    """
+    Legge `recording_id` dal CSV dei risultati della fase di test e costruisce
+    un task solo per quelle registrazioni. I battiti corrispondenti vengono
+    poi recuperati da `beats_index.csv` e dai file in `segments/` creati da
+    china_test_builder.py.
+
+    Sono accettati sia la directory radice dell'output (contenente `test/`)
+    sia direttamente la directory `test/`.
+    """
+    root = Path(china_root)
+    data_dir = root / "test" if (root / "test").is_dir() else root
+    index_path = data_dir / "beats_index.csv"
+    segments_dir = data_dir / "segments"
+
+    if not index_path.exists():
+        raise FileNotFoundError(f"Index China non trovato in: {index_path}")
+    if not segments_dir.is_dir():
+        raise FileNotFoundError(f"Directory dei segmenti China non trovata in: {segments_dir}")
+
+    selected_df = pd.read_csv(china_csv)
+    if "recording_id" not in selected_df.columns:
+        raise ValueError(f"Colonna 'recording_id' mancante in {china_csv}")
+    selected_ids = set(selected_df["recording_id"].dropna().astype(str))
+    if not selected_ids:
+        raise ValueError(f"Nessun recording_id valido trovato in {china_csv}")
+
+    china_df = pd.read_csv(index_path)
+    required_cols = {"filename", "ecg_id"}
+    missing = required_cols - set(china_df.columns)
+    if missing:
+        raise ValueError(f"Colonne mancanti in {index_path}: {sorted(missing)}")
+
+    # Filtra prima del groupby: i segmenti delle altre registrazioni non
+    # vengono mai caricati e non entrano nel ciclo di inferenza.
+    china_df["ecg_id"] = china_df["ecg_id"].astype(str)
+    available_ids = set(china_df["ecg_id"])
+    missing_ids = sorted(selected_ids - available_ids)
+    if missing_ids:
+        print(
+            f"Attenzione: {len(missing_ids)} recording_id del CSV non trovati "
+            f"in {index_path} (es. {missing_ids[:3]})"
+        )
+    china_df = china_df[china_df["ecg_id"].isin(selected_ids)]
+
+    tasks = []
+    for ecg_id, recording_df in china_df.groupby("ecg_id", sort=True):
+        filenames = recording_df["filename"].astype(str).tolist()
+        patient_id = str(recording_df["patient_id"].iloc[0]) if "patient_id" in recording_df else str(ecg_id)
+
+        def load_beats(filenames=filenames):
+            loaded_beats = []
+            for filename in filenames:
+                segment = np.load(segments_dir / filename).astype(np.float32)
+                if segment.ndim != 2:
+                    raise ValueError(f"Segmento China non bidimensionale: {filename}")
+                if segment.shape[0] == 12:
+                    segment = segment.T
+                elif segment.shape[1] != 12:
+                    raise ValueError(f"Shape inattesa per segmento China {filename}: {segment.shape}")
+                loaded_beats.append(segment)
+            return np.stack(loaded_beats)
+
+        tasks.append({
+            "ecg_id": str(ecg_id),
+            "source": "china",
+            "patient_id": patient_id,
+            "lead_names": LEAD_NAMES_PHYSIONET,
+            "loader": load_beats,
+            "presegmented": True,
+        })
+
+    return tasks
+
+
 # --------------------------------------------------------------------------
 # Inferenza + majority voting a livello di registrazione
 # --------------------------------------------------------------------------
@@ -265,8 +360,8 @@ def apply_transform_to_all_beats(beats_leads_last: np.ndarray, label: str) -> np
 
 def load_model(weights_path: str, num_classes: int, device):
     model = ECG_CNN(
-        hidden_channels=(32, 64, 128),
-        dropout=0.18281203311944025,
+        hidden_channels=(64, 128, 256),
+        dropout=0.17937371217945058,
         num_classes=num_classes,
         use_mlp_classifier=False,
     ).to(device)
@@ -281,6 +376,19 @@ def load_model(weights_path: str, num_classes: int, device):
 
 def main():
     args = parse_args()
+
+    # China e' un dataset gia' segmentato: quando vengono indicati root e CSV,
+    # e' la sola sorgente usata e non servono ne' l'indice train ne' i database raw.
+    if args.china_root and args.china_csv:
+        tasks_source = "china"
+    elif args.ptbxl_root and args.georgia_root and args.index_csv:
+        tasks_source = "ptbxl/georgia"
+    else:
+        raise ValueError(
+            "Specificare insieme --china_root e --china_csv oppure specificare insieme "
+            "--ptbxl_root, --georgia_root e --index_csv"
+        )
+
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
     print(f"--> Device: {device}")
 
@@ -291,8 +399,12 @@ def main():
     print(f"--> Caricamento modello da: {args.weights}")
     model = load_model(args.weights, num_classes, device)
 
-    print(f"--> Risoluzione registrazioni train set da: {args.index_csv}")
-    tasks = get_train_recording_tasks(args.index_csv, args.ptbxl_root, args.georgia_root)
+    if tasks_source == "china":
+        print(f"--> Lettura registrazioni China selezionate da: {args.china_csv}")
+        tasks = get_china_recording_tasks(args.china_root, args.china_csv)
+    else:
+        print(f"--> Risoluzione registrazioni train set da: {args.index_csv}")
+        tasks = get_train_recording_tasks(args.index_csv, args.ptbxl_root, args.georgia_root)
     print(f"--> {len(tasks)} registrazioni da analizzare.")
 
     if args.max_recordings is not None:
@@ -305,16 +417,20 @@ def main():
     for task in tqdm(tasks, desc="Analisi registrazioni train"):
         ecg_id = task["ecg_id"]
         try:
-            signal = task["loader"]()
-            if np.isnan(signal).any():
+            loaded_data = task["loader"]()
+            if np.isnan(loaded_data).any():
                 skipped.append((ecg_id, "segnale_contiene_NaN"))
                 continue
         except Exception as e:
             skipped.append((ecg_id, f"errore: {e}"))
             continue
 
-        r_peaks = detect_r_peaks_v1_v5_average(signal, task["lead_names"])
-        beats, _ = segment_beats(signal, r_peaks)
+        # I dati China sono gia' beat (n_beats, T, 12)
+        if task.get("presegmented", False):
+            beats = loaded_data
+        else:
+            r_peaks = detect_r_peaks_v1_v5_average(loaded_data, task["lead_names"])
+            beats, _ = segment_beats(loaded_data, r_peaks)
         if beats.shape[0] == 0:
             skipped.append((ecg_id, "nessun_battito_valido"))
             continue
