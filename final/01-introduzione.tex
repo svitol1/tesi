@@ -1,0 +1,50 @@
+\chapter{Introduzione}
+
+\section{Il problema del malposizionamento degli elettrodi}
+
+L'elettrocardiogramma a 12 derivazioni è, ancora oggi, lo strumento diagnostico più diffuso ed economico per la valutazione dell'attività elettrica del cuore, ed è alla base della diagnosi di un ampio spettro di patologie cardiovascolari. La sua affidabilità clinica dipende però in modo critico dalla corretta esecuzione del posizionamento dei dieci elettrodi sulla superficie corporea del paziente, secondo lo standard descritto nella sezione \ref{pos_elettrodi}.
+
+Nella pratica clinica quotidiana, questo posizionamento non è sempre eseguito correttamente. Lo scambio di due elettrodi periferici (ad esempio: braccio destro e braccio sinistro) o il posizionamento non corretto di uno o più elettrodi precordiali sono errori tutt'altro che rari: la letteratura riporta un'incidenza di malposizionamento che, a seconda del contesto di acquisizione e della tipologia di errore considerata, varia indicativamente da meno dell'1\% fino a diversi punti percentuali dei tracciati registrati. Il problema però, è molto più subdolo: un elettrodo scambiato può alterare in modo sostanziale la morfologia delle onde P, del complesso QRS e dell'onda T, fino a simulare quadri patologici inesistenti (ad esempio un infarto anteriore o un pattern di tipo Brugada) oppure, viceversa, a mascherare un'alterazione realmente presente. Le conseguenze cliniche di una diagnosi errata derivante da un tracciato mal acquisito possono essere significative, sia in termini di sicurezza del paziente sia in termini di costi sanitari legati ad accertamenti diagnostici superflui.
+
+A differenza di altri artefatti che affliggono il segnale ECG (rumore da rete elettrica, interferenza muscolare, movimento del paziente), il malposizionamento degli elettrodi produce un tracciato che, salvo casi particolari, resta \textit{"plausibile"}: le onde sono presenti, hanno un'ampiezza e una forma ragionevoli, e nulla nell'aspetto generale del tracciato segnala immediatamente l'anomalia a un occhio poco esperto. Questo rende il problema particolarmente insidioso e, al tempo stesso, difficile da affrontare con semplici tecniche di controllo qualità del segnale.
+
+\section{Obiettivi della tesi}
+
+L'obiettivo di questo lavoro è lo sviluppo e la validazione di un sistema automatico in grado di rilevare il malposizionamento degli elettrodi a partire da un singolo tracciato ECG a 12 derivazioni, senza richiedere un tracciato di riferimento acquisito correttamente sullo stesso paziente. In particolare, il lavoro si pone i seguenti obiettivi specifici:
+
+\begin{itemize}
+    \item costruire un dataset di grandi dimensioni ed etichettato in modo affidabile, a partire da database pubblici di ECG correttamente acquisiti, tramite la simulazione algebrica degli effetti di uno scambio di elettrodi sulle derivazioni standard;
+    \item progettare un'architettura di deep learning in grado di sfruttare non solo l'informazione morfologica di ciascuna singola derivazione, ma anche la relazione \emph{spaziale} e \emph{temporale} che lega le diverse derivazioni tra loro;
+    \item validare sperimentalmente il modello proposto su un insieme di test bilanciato, misurandone le prestazioni complessive e per singola tipologia di scambio, e confrontandole con approcci di riferimento più semplici;
+    \item discutere criticamente i risultati ottenuti, i limiti dell'approccio e la sua trasferibilità a un contesto clinico reale.
+\end{itemize}
+
+\section{Contributi della tesi}
+
+Il contributo originale di questo lavoro può essere sintetizzato in tre punti principali.
+
+In primo luogo, viene proposta una \textbf{pipeline di simulazione degli scambi di elettrodi} basata sulle equazioni algebriche che legano le derivazioni standard ai potenziali dei singoli elettrodi (leggi di Einthoven e Goldberger, terminale centrale di Wilson). Questo approccio consente di generare, a partire da tracciati acquisiti correttamente, esempi etichettati e realistici delle principali tipologie di scambio, superando l'assenza di annotazioni di questo tipo nei database pubblici disponibili.
+
+In secondo luogo, vengono proposte tre architetture: una ibrida \emph{CNN+GCN}, in cui il ramo convoluzionale 1D estrae feature morfologiche da ciascuna derivazione, mentre la rete convoluzionale a grafo (\textit{Graph Convolutional Network}) mette in relazione tali feature secondo una matrice di adiacenza costruita a partire dalla geometria spaziale reale delle derivazioni; una \emph{CNN} pura e un \emph{MLP}.
+
+In terzo luogo, viene condotta una \textbf{validazione sperimentale} del modello proposto, con un'analisi dei modelli allenati sulle stesse classi di scambio, anche multi-classe, e uno studio mirato all'identificazione dei malposizionamenti sfruttando falsi positivi e falsi negativi.
+
+\section{Organizzazione dell'elaborato}
+
+Il resto dell'elaborato è organizzato come segue.
+
+Il Capitolo~2 richiama le nozioni di anatomia ed elettrofisiologia cardiaca necessarie a comprendere l'origine del segnale ECG, il posizionamento standard degli elettrodi, il calcolo delle dodici derivazioni e i criteri di normalità di un tracciato.
+
+Il Capitolo~3 presenta una rassegna dello stato dell'arte relativo al rilevamento automatico del malposizionamento degli elettrodi, distinguendo tra metodi classici basati su regole cliniche e criteri morfologici e i più recenti approcci basati su machine learning e deep learning.
+
+Il Capitolo~4 introduce le basi matematiche utilizzate nel resto del lavoro: le trasformate di Fourier, Laplace e Z, la teoria dei filtri lineari, e le tecniche di elaborazione del segnale ECG digitale (campionamento, quantizzazione, preprocessing e filtraggio).
+
+Il Capitolo~5 descrive nel dettaglio la costruzione del dataset utilizzato, a partire dai database pubblici PTB-XL e Georgia, illustrando lo split per paziente, la segmentazione beat-by-beat e le equazioni utilizzate per simulare gli scambi di elettrodi.
+
+Il Capitolo~6 descrive le architetture citate precedentemente e come avviene il \emph{message-passing} tra le varie architetture.
+
+Il Capitolo~7 presenta il protocollo di validazione sperimentale, le metriche utilizzate e i risultati ottenuti, complessivi e per singola classe di scambio, confrontati con le baseline di riferimento.
+
+Il Capitolo~8 discute i risultati ottenuti, analizzando le classi di scambio da identificare, la trasferibilità clinica del sistema e i limiti legati all'utilizzo di un dataset sintetico.
+
+Il Capitolo~9, infine, riassume i risultati raggiunti e propone possibili sviluppi futuri del lavoro di ricerca.

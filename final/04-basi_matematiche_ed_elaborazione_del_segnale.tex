@@ -1,0 +1,441 @@
+\chapter{Basi matematiche ed elaborazione del segnale}
+
+\section{Fondamenta matematiche}
+
+Prima di affrontare le tecniche di elaborazione del segnale ECG è necessario introdurre gli strumenti matematici su cui esse si fondano. Questa sezione presenta le trasformate fondamentali per l'analisi dei segnali, la teoria dei filtri lineari e il concetto di funzione di trasferimento, che costituiranno il riferimento teorico per tutte le sezioni successive~\cite{oppenheim1996signals, oppenheim1997dsp}.
+
+\subsection{Fondamenti matematici per l'analisi dei segnali}
+
+\subsubsection{Il segnale ECG come oggetto matematico}
+Il segnale ECG nel mondo fisico è un segnale \textbf{continuo nel tempo}, formalmente una funzione:
+\[
+x : \mathbb{R} \to \mathbb{R}, \quad t \mapsto x(t)
+\]
+dove $t$ è il tempo in secondi e $x(t)$ è la differenza di potenziale in millivolt misurata tra due elettrodi. Presenta una struttura morfologica ripetitiva, corrispondente al ciclo PQRST ma non è strettamente periodico, poiché la durata di ogni ciclo varia leggermente nel tempo. Tale variabilità, nota come \textit{Heart Rate Variability} (HRV), costituisce una fonte di informazione clinicamente rilevante e sarà trattata nella sezione dedicata all'analisi nel dominio del tempo.
+
+la funzione $x(t)$ appartiene allo spazio $L^2(\mathbb{R})$, ovvero è una funzione a \textbf{energia finita}:
+\[
+E = \int_{-\infty}^{+\infty} |x(t)|^2 \, dt < \infty
+\]
+Questa proprietà è fondamentale: garantisce l'esistenza della trasformata di Fourier e la validità di tutte le operazioni di filtraggio che verranno trattate nelle sezioni successive.
+
+\subsubsection{Trasformata di Laplace}
+\label{trasform_laplace}
+La trasformata di Laplace è lo strumento fondamentale per l'analisi dei sistemi lineari \textbf{a tempo continuo}~\cite{oppenheim1996signals}. Data una funzione $x(t) : \mathbb{R} \to \mathbb{R}$ causale (ovvero nulla per $t < 0$), la sua trasformata di Laplace unilaterale è definita come:
+\[
+X(s) = \mathcal{L}\{x(t)\} = \int_{0}^{+\infty} x(t)\, e^{-st}
+\, dt
+\]
+dove $s = \sigma + j\omega \in \mathbb{C}$ è la variabile complessa, con $\sigma \in \mathbb{R}$ parte reale e $\omega \in \mathbb{R}$ parte immaginaria. L'integrale converge nella \textbf{regione di convergenza} (ROC), ovvero l'insieme dei valori di $s$ per cui l'integrale esiste finito.
+
+La trasformata inversa di Laplace è data dall'integrale di Bromwich:
+\[
+x(t) = \mathcal{L}^{-1}\{X(s)\} = \frac{1}{2\pi j}
+\int_{\sigma - j\infty}^{\sigma + j\infty} X(s)\, e^{st} \, ds
+\]
+In pratica, l'antitrasformata viene quasi sempre calcolata tramite scomposizione in frazioni parziali e utilizzo di tavole delle trasformate note, evitando il calcolo diretto dell'integrale.
+
+\paragraph{Proprietà fondamentali.}
+Le proprietà della trasformata di Laplace che risultano più utili nell'analisi dei sistemi sono le seguenti. La \textbf{linearità} garantisce che:
+\[
+\mathcal{L}\{\alpha\, x(t) + \beta\, y(t)\} =
+\alpha\, X(s) + \beta\, Y(s)
+\]
+La proprietà di \textbf{derivazione} trasforma la derivata nel dominio del tempo in una moltiplicazione nel dominio di $s$:
+\[
+\mathcal{L}\left\{\frac{d^n x}{dt^n}\right\} = s^n X(s) -
+\sum_{k=0}^{n-1} s^{n-1-k}\, x^{(k)}(0^-)
+\]
+che per condizioni iniziali nulle si riduce a $s^n X(s)$. Questa proprietà è alla base della descrizione dei sistemi dinamici: un'equazione differenziale nel dominio del tempo diventa un'equazione algebrica nel dominio di $s$, molto più semplice da trattare.
+
+La proprietà di \textbf{convoluzione} stabilisce che:
+\[
+\mathcal{L}\{x(t) * h(t)\} = X(s) \cdot H(s)
+\]
+dove $*$ indica la convoluzione. L'uscita di un sistema lineare è la convoluzione dell'ingresso con la risposta impulsiva del sistema; nel dominio di $s$ tale operazione diventa una semplice moltiplicazione, rendendo molto più agevole l'analisi dei sistemi in cascata.
+
+\paragraph{Relazione con la trasformata di Fourier.}
+La trasformata di Fourier si ottiene dalla trasformata di Laplace valutandola solamente sull'asse immaginario, ovvero ponendo $\sigma = 0$ e $s = j\omega = j 2\pi f$:
+
+\[
+X(j\omega) = X(s)\big|_{s = j\omega} =
+\int_{-\infty}^{+\infty} x(t)\, e^{-j\omega t} \, dt
+\]
+Questa relazione è valida se e solo se il segnale sia strettamente \textit{causale} (come definito in \ref{trasform_laplace}) e l'asse immaginario appartenga alla ROC.
+
+Geometricamente, la trasformata di Fourier è la restrizione della trasformata di Laplace alla retta verticale $\text{Re}(s) = 0$ nel piano complesso. Mentre la trasformata di Laplace descrive il comportamento transitorio e la stabilità di un sistema, la trasformata di Fourier ne descrive la risposta in regime sinusoidale stazionario, ovvero la risposta in frequenza.
+
+\subsubsection{Trasformata di Fourier}
+La trasformata di Fourier estende il concetto di serie di Fourier (valido per segnali periodici) ai segnali aperiodici a \emph{energia finita}~\cite{oppenheim1996signals}. Data $x(t) \in L^2(\mathbb{R})$, la trasformata di Fourier è definita come:
+\[
+X(f) = \mathcal{F}\{x(t)\} =
+\int_{-\infty}^{+\infty} x(t)\, e^{-j2\pi f t} \, dt
+\]
+e la trasformata inversa come:
+\[
+x(t) = \mathcal{F}^{-1}\{X(f)\} =
+\int_{-\infty}^{+\infty} X(f)\, e^{j2\pi f t} \, df
+\]
+$X(f)$ è in generale una funzione a valori complessi. Il suo modulo $|X(f)|$ è detto \textbf{spettro di ampiezza} e descrive l'intensità di ciascuna componente frequenziale, mentre la sua fase $\Delta X(f)$ indica lo sfasamento di ogni componente sinusoidale. La quantità $|X(f)|^2$ è detta \textbf{densità spettrale di energia} e il teorema di Parseval garantisce la conservazione dell'energia nelledue rappresentazioni:
+\[
+\int_{-\infty}^{+\infty} |x(t)|^2\, dt =
+\int_{-\infty}^{+\infty} |X(f)|^2\, df
+\]
+Una proprietà fondamentale è quella di derivazione nel dominio del tempo: sia $f(t)$ continua e derivabile, siano $f(t)$ e $f^{'}(t)$ integrabili a energia finita, allora possiamo dire che derivare una funzione nel tempo (dominio reale) equivale a moltiplicare la sua trasformata di Fourier per $j\omega$
+\[
+\mathcal{F}\{f^{'}(t)\}=j\omega\mathcal{F}\{f(t)\} 
+\]
+
+\paragraph{Trasformata di Fourier discreta (DFT).}
+Per segnali disponibili come \textbf{sequenze finite} di $N$ campioni $\{x[n]\}_{n=0}^{N-1}$, la Trasformata di Fourier Discreta è definita come~\cite{oppenheim1997dsp}:
+\[
+X[k] = \sum_{n=0}^{N-1} x[n]\, e^{-j2\pi kn/N},
+\quad k = 0, 1, \ldots, N-1
+\]
+dove $k$ indicizza le frequenze discrete $f_k = k \cdot f_s / N$. La trasformata inversa è:
+\[
+x[n] = \frac{1}{N} \sum_{k=0}^{N-1} X[k]\, e^{j2\pi kn/N},
+\quad n = 0, 1, \ldots, N-1
+\]
+Il calcolo diretto della DFT richiede $\mathcal{O}(N^2)$ operazioni. L'\textbf{algoritmo FFT} (\textit{Fast Fourier Transform}) riduce questa complessità a $\mathcal{O}(N \log N)$ sfruttando la simmetria della DFT, rendendo l'analisi spettrale computazionalmente praticabile anche su segnali di lunga durata.
+
+\subsubsection{Trasformata Z}
+La trasformata Z è l'analogo discreto della trasformata di Laplace e costituisce lo strumento naturale per l'analisi e la progettazione di filtri digitali~\cite{oppenheim1997dsp}. Data una sequenza discreta $x[n]$, la sua trasformata Z bilaterale è definita come:
+\[
+X(z) = \mathcal{Z}\{x[n]\} = \sum_{n=-\infty}^{+\infty}
+x[n]\, z^{-n}, \quad z \in \mathbb{C}
+\]
+La serie converge in un sottoinsieme del piano complesso detto \textbf{regione di convergenza} (ROC). Il termine $z^{-n}$ ha un'interpretazione geometrica diretta: per $z = r e^{j\omega}$, la trasformata Z valuta la sequenza $x[n]$ pesata da un'esponenziale complessa a frequenza $\omega$ e ampiezza $r^{-n}$.
+
+\paragraph{Significato di $z^{-1}$.}
+L'elemento fondamentale della trasformata Z è la proprietà di ritardo: moltiplicare per $z^{-k}$ nel dominio Z corrisponde a ritardare la sequenza di $k$ campioni nel dominio del tempo:
+\[
+\mathcal{Z}\{x[n-k]\} = z^{-k}\, X(z)
+\]
+Questa proprietà rende $z^{-1}$ interpretabile come un \textbf{operatore di ritardo unitario}: un elemento che restituisce il campione precedente. È l'elemento fondamentale con cui si costruiscono i filtri digitali, poiché qualsiasi equazione alle differenze con campioni ritardati si traduce immediatamente in un'espressione algebrica in $z$.
+
+\paragraph{Relazione con la trasformata di Fourier a tempo discreto (DTFT).}
+Valutando la trasformata Z sulla circonferenza unitaria $|z| = 1$, ovvero ponendo $z = e^{j\omega}$, si ottiene la trasformata di Fourier a tempo discreto (DTFT):
+\[
+X\!\left(e^{j\omega}\right) = X(z)\big|_{z=e^{j\omega}}
+= \sum_{n=-\infty}^{+\infty} x[n]\, e^{-j\omega n}
+\]
+La DTFT è una funzione \textit{continua} della variabile di frequenza $\omega$ (o, equivalentemente, di $f = \omega f_s / 2\pi$), definita per sequenze $x[n]$ generalmente di lunghezza infinita. Essa generalizza al caso discreto la trasformata di Fourier continua, ed esiste (in senso classico) solo per le sequenze la cui ROC della trasformata Z include la circonferenza unitaria.
+
+\paragraph{Dalla DTFT alla DFT.}
+La \textbf{DFT}, definita in precedenza per sequenze finite di $N$ campioni, si ottiene \textbf{campionando la DTFT} in $N$ punti equispaziati lungo la circonferenza unitaria, alle frequenze discrete:
+\[
+\omega_k = \frac{2\pi k}{N}, \qquad k = 0, 1, \ldots, N-1
+\]
+ovvero:
+\[
+X[k] = X\!\left(e^{j\omega}\right)\Big|_{\omega = \frac{2\pi k}{N}}
+= X\!\left(e^{j2\pi k/N}\right)
+\]
+La DFT è dunque una sequenza \textbf{discreta} di $N$ valori, mentre la DTFT è una funzione continua di $\omega$, di cui la DFT ne rappresenta un campionamento in frequenza.
+
+\paragraph{Proprietà fondamentali.}
+Le proprietà più rilevanti per l'analisi dei filtri digitali sono la \textbf{linearità}:
+\[
+\mathcal{Z}\{\alpha\, x[n] + \beta\, y[n]\} =
+\alpha\, X(z) + \beta\, Y(z)
+\]
+e la proprietà di \textbf{convoluzione}, analoga a quella della trasformata di Laplace:
+\[
+\mathcal{Z}\{x[n] * h[n]\} = X(z) \cdot H(z)
+\]
+dove $*$ indica la convoluzione discreta. Come nel caso continuo, questa proprietà trasforma l'operazione di filtraggio, che nel dominio del tempo è una convoluzione, in una moltiplicazione nel dominio Z.
+
+\subsection{Spline}
+
+La spline viene utilizzata per problemi di interpolazione e nasce per sopperire all'utilizzo di un singolo polinomio che in presenza di molti punti diventa di grado molto alto, generando delle brusche oscillazioni nella funzione interpolante, definito come fenomeno di Runge.
+
+Una spline di grado $n$ su una partizione $\{t_1,\dots,t_k\}$ è una funzione $S(t)$ tale che:
+\begin{itemize}
+	\item su ogni intervallo $[t_i,t_{i+1}]$ ci sia un polinomio di grado $\le n$
+	\item è continua insieme alle derivate fino al grado $n-1$ nei punti di raccordo $t_i$
+\end{itemize}
+La regolarità $C^{n-1}$ nei punti di raccordo descritta sopra rappresenta la condizione di \emph{massima regolarità teorica} raggiungibile per una spline di grado $n$, e vale esclusivamente nel caso di \emph{nodi semplici}, cioè quando ogni nodo $t_i$ compare una sola volta nella partizione. Nel seguito, la trattazione si limiterà a questo caso. In presenza di \emph{nodi multipli} (un nodo ripetuto con molteplicità $m$), la regolarità nel punto di giunzione si riduce, cioè la spline risulta continua solamente fino alla derivata di ordine $n-m$, permettendo così di introdurre in modo controllato discontinuità o spigoli nella curva o nelle sue derivate.
+
+\subsubsection{B-spline}
+
+Le B-spline sono molto importanti, in quanto qualsiasi funzione spline può essere scritta come combinazione lineare di B-spline~\cite{unser1999splines}. Una proprietà fondamentale di esse è il \textbf{supporto compatto minimo}: data una B-spline di grado $n$, allora essa sarà non nulla solamente nell'intervallo determinato da $n+2$ nodi consecutivi; al di fuori di questo intervallo la funzione assume valore zero.
+
+Questa funzione presenta diversi vantaggi: il primo è dato dal fatto che, grazie al supporto compatto minimo, spostando un nodo, o modificando un coefficiente, la modifica si propaga solamente a un numero \emph{limitato e ben definito} di intervalli adiacenti, cioè quelli coperti dal supporto della B-spline di grado $n$, ovvero $n+2$ nodi consecutivi, mentre il resto della curva, al di fuori di questa finestra, rimane invariato; il secondo nasce di conseguenza. Infatti, la B-spline risulta molto efficiente in quanto il calcolo di un punto della curva non richiede l'elaborazione di tutta la curva considerando tutti i punti, ma solamente delle B-spline il cui supporto contiene quel punto. Infine sono particolarmente indicate per i filtri FIR~\cite{unser1999splines}.
+
+\paragraph{Definizione} La B-spline di grado $0$ è una semplice funzione rettangolare:
+\[
+\beta^0(t)= \begin{cases}
+	1 & 0\le t\le 1 \\
+	0 & altrimenti
+\end{cases}
+\]
+Le B-spline di grado $n$ sono continue insieme alle loro derivate fino all'ordine $n-1$, le B-spline di ordine superiore si costruiscono per \textbf{auto-convoluzione}~\cite{unser1999splines}:
+\[
+\beta^n(t)=\underbrace{\beta^0*\beta^0\dots*\beta^0}_\text{n+1 volte}
+\]
+
+\paragraph{Metodi per il calcolo della convoluzione.} Esistono due modi principali per calcolare un operazione di convoluzione:
+\begin{description}
+	\item[Integrale di convoluzione]
+	In generale l'operazione di convoluzione tra due funzioni $f(t)$ e $g(t)$ è:
+	\[
+	(f*g)(t)=\int^{+\infty}_{-\infty}{f(\alpha)g(t-\alpha)\,d\alpha} 
+	\]
+	In questo caso $f$ e $g$ sono la stessa funzione. In termini grafici, questa operazione equivale a prendere la funzione rettangolare $\beta^0$ e scorrerla come una finestra sull'altra; è per questo motivo che $\beta^1$ è una funzione triangolare.
+	
+	\item[Trasformata di Fourier]
+	Per la proprietà di convoluzione delle trasformate, una qualsiasi operazione di convoluzione nel dominio reale diventa una semplice moltiplicazione nel dominio delle trasformate:
+	\[
+	\mathcal{F}\{f*g\}(\omega)=\mathcal{F}\{f\}(\omega)\cdot\mathcal{F}\{g\}(\omega) 
+	\]
+	Ora calcoliamo la trasformata di $\beta^0$:
+	\[
+	\hat{\beta}^0(\omega)=\int^{+\infty}_{-\infty}{\beta}^0(t)\cdot e^{-j\omega t}\,dt=\int^{1}_{0}{e^{-j\omega t}\,dt}=\left[\frac{e^{-j\omega t}}{-j\omega}\right]^1_0=\frac{1-e^{-j\omega}}{j\omega}
+	\]
+	Quindi ci basterà elevare il risulato finale alla $n+1$ per ottenere una B-spline di grado $n$:
+	\[
+	\hat{\beta}^n=\left(\frac{1-e^{-j\omega}}{j\omega}\right)^{n+1}
+	\]
+\end{description}
+
+\subsection{Filtri lineari e funzione di trasferimento}
+
+Un \textbf{filtro digitale} è un sistema che trasforma una sequenza di ingresso $x[n]$ in una sequenza di uscita $y[n]$ secondo una relazione definita da un'equazione alle differenze. Un sistema si dice \textbf{lineare} se rispetta il principio di sovrapposizione: la risposta alla somma di due ingressi è uguale alla somma delle risposte ai singoli ingressi, ovvero per qualsiasi scalari $\alpha, \beta$ e ingressi $x_1[n], x_2[n]$~\cite{oppenheim1997dsp}:
+\[
+T\{\alpha\, x_1[n] + \beta\, x_2[n]\} =
+\alpha\, T\{x_1[n]\} + \beta\, T\{x_2[n]\}
+\]
+Un sistema si dice \textbf{tempo-invariante} se la sua risposta non dipende dall'istante temporale assoluto in cui viene applicato l'ingresso: ritardare l'ingresso di $k$ campioni produce semplicemente un'uscita ritardata di $k$ campioni, senza alterarne la forma. Un sistema che gode di entrambe le proprietà è detto \textbf{LTI} (\textit{Linear Time-Invariant}) e costituisce la classe di sistemi più ampiamente studiata nell'elaborazione dei segnali, poiché è completamente caratterizzata dalla propria \textbf{risposta impulsiva} $h[n]$, ovvero dall'uscita prodotta quando l'ingresso è un impulso unitario $\delta[n]$.
+
+\paragraph{Equazione alle differenze.}
+La forma generale di un filtro LTI causale è:
+\[
+\sum_{k=0}^{N} a_k\, y[n-k] = \sum_{m=0}^{M} b_m\, x[n-m]
+\]
+con $a_0 = 1$ per convenzione. I coefficienti $\{b_m\}$ pesano i campioni correnti e passati dell'ingresso (parte \textit{feedforward}), mentre i coefficienti $\{a_k\}$ con $k \geq 1$ pesano i campioni passati dell'uscita (parte \textit{feedback}). La presenza o assenza di quest'ultima determina la distinzione tra le due grandi famiglie di filtri digitali.
+
+\paragraph{Funzione di trasferimento.}
+Applicando la trasformata Z all'equazione alle differenze e sfruttando la proprietà di ritardo $\mathcal{Z}\{y[n-k]\} = z^{-k} Y(z)$, si ottiene:
+\[
+Y(z) \sum_{k=0}^{N} a_k\, z^{-k} =
+X(z) \sum_{m=0}^{M} b_m\, z^{-m}
+\]
+La \textbf{funzione di trasferimento} è il rapporto tra la trasformata Z dell'uscita e quella dell'ingresso a condizioni iniziali nulle:
+\[
+H(z) = \frac{Y(z)}{X(z)} =
+\frac{\displaystyle\sum_{m=0}^{M} b_m\, z^{-m}}
+{\displaystyle\sum_{k=0}^{N} a_k\, z^{-k}}
+\]
+$H(z)$ è una funzione razionale in $z^{-1}$ che contiene tutta l'informazione sul comportamento del filtro. I valori di $z$ per cui il numeratore si annulla sono detti \textbf{zeri}; i valori per cui il denominatore si annulla sono detti \textbf{poli}. La posizione di poli e zeri nel piano complesso determina completamente le proprietà del filtro.
+
+\paragraph{Risposta in frequenza.}
+Valutando $H(z)$ sulla circonferenza unitaria si ottiene la \textbf{risposta in frequenza} del filtro:
+\[
+H\!\left(e^{j2\pi f/f_s}\right) = |H(f)|\, e^{j\Delta H(f)}
+\]
+Il modulo $|H(f)|$ è detto \textbf{risposta in ampiezza} e descrive quanto il filtro amplifica o attenua ciascuna componente frequenziale; la fase $\Delta H(f)$ descrive il ritardo di fase introdotto. Un filtro ideale passa-basso con frequenza di taglio $f_c$ avrebbe:
+\[
+|H(f)| = \begin{cases} 1 & |f| \leq f_c \\ 0 & |f| > f_c
+\end{cases}
+\]
+I filtri reali approssimano questo comportamento ideale con transizioni graduali tra banda passante e banda attenuata.
+
+\subsubsection{Impulso unitario e risposta impulsiva.}
+L'impulso unitario discreto, detto anche \textbf{delta di Kronecker}, è la sequenza definita come:
+\[
+\delta[n] = \begin{cases} 1 & n = 0 \\ 0 & n \neq 0 \end{cases}
+\]
+Esso costituisce l'elemento identità rispetto alla convoluzione discreta e gode di una proprietà fondamentale, detta \textbf{proprietà di campionamento}:
+\[
+\sum_{k=-\infty}^{+\infty} x[k]\, \delta[n - k] = x[n]
+\]
+che esprime il fatto che qualsiasi sequenza $x[n]$ può essere decomposta in una somma di impulsi traslati e pesati dai propri valori. Questa decomposizione, combinata con le proprietà di linearità e tempo-invarianza, implica che l'uscita di un sistema LTI a un ingresso arbitrario $x[n]$ è completamente determinata dalla risposta del sistema al solo impulso $\delta[n]$.
+
+Si definisce \textbf{risposta impulsiva} $h[n]$ l'uscita di un sistema LTI quando l'ingresso è l'impulso unitario:
+\[
+h[n] = T\{\delta[n]\}
+\]
+dove $T\{\cdot\}$ indica l'operatore che descrive il sistema. La conoscenza di $h[n]$ è sufficiente a determinare l'uscita del sistema per qualsiasi ingresso $x[n]$, poiché per le proprietà LTI si ha:
+\[
+y[n] = \sum_{k=-\infty}^{+\infty} x[k]\, h[n-k] = x[n] * h[n]
+\]
+ovvero l'uscita è la \textbf{convoluzione discreta} dell'ingresso con la risposta impulsiva. Questo risultato, noto come \textbf{integrale di convoluzione discreto}, è il teorema centrale della teoria dei sistemi LTI: qualunque sistema lineare tempo-invariante è completamente caratterizzato dalla propria risposta impulsiva.
+
+La funzione di trasferimento $H(z)$, introdotta nella sezione precedente come rapporto $Y(z)/X(z)$, coincide con la trasformata Z della risposta impulsiva:
+\[
+H(z) = \frac{Y(z)}{X(z)} = \mathcal{Z}\{h[n]\}
+\]
+Le due espressioni non sono definizioni indipendenti: la seconda segue direttamente dalla prima applicando la proprietà di convoluzione della trasformata Z all'identità $y[n] = x[n] * h[n]$.
+
+La durata di $h[n]$ distingue le due grandi famiglie di filtri digitali. Se $h[n]$ è nulla al di fuori di un intervallo finito $[0, M]$, il filtro è detto FIR (\textit{Finite Impulse Response}); se $h[n]$ è non nulla per infiniti valori di $n$, tipicamente decade asintoticamente a zero, il filtro è detto IIR (\textit{Infinite Impulse Response}). Nel secondo caso la presenza di una componente di feedback nell'equazione alle differenze è la causa diretta della durata infinita della risposta impulsiva.
+
+\subsubsection{Filtri FIR e IIR.}
+Se tutti i coefficienti $a_k = 0$ per $k \geq 1$, allora il denominatore di $H(z)$ è costante e il filtro non ha poli (eccetto nell'origine). In questo caso l'uscita dipende solo dai campioni correnti e passati dell'ingresso, la risposta impulsiva ha durata finita e il filtro è detto \textbf{FIR} (\textit{Finite Impulse Response}):
+\[
+H_{FIR}(z) = \sum_{m=0}^{M} b_m\, z^{-m}
+\]
+I filtri FIR sono sempre stabili e possono essere progettati per avere \textbf{fase lineare}, proprietà che garantisce un ritardo costante e uguale per tutte le frequenze; condizione importante nell'analisi ECG per non distorcere la morfologia delle onde.
+
+Se invece almeno un coefficiente $a_k \neq 0$, il filtro presenta un anello di retroazione: l'uscita attuale dipende anche dalle uscite passate. La risposta impulsiva ha durata infinita e il filtro è detto \textbf{IIR} (\textit{Infinite Impulse Response}):
+\[
+H_{IIR}(z) = \frac{\displaystyle\sum_{m=0}^{M} b_m\, z^{-m}}
+{\displaystyle\sum_{k=0}^{N} a_k\, z^{-k}}
+\]
+I filtri IIR richiedono un numero di coefficienti inferiore rispetto ai FIR per ottenere la stessa selettività in frequenza, ma possono essere instabili se i poli si trovano fuori dalla circonferenza unitaria, e introducono in generale una fase non lineare.
+
+\paragraph{Stabilità.}
+Un filtro IIR è \textbf{BIBO stabile} (\textit{Bounded Input Bounded Output}) ovvero produce un'uscita limitata per qualsiasi ingresso limitato, se e solo se tutti i suoi poli si trovano \textbf{all'interno della circonferenza unitaria} nel piano $z$:
+\[
+|z_k| < 1 \quad \forall\, k = 1, \ldots, N
+\]
+I filtri FIR, non avendo poli (o avendoli solo nell'origine), sono incondizionatamente stabili.
+
+\paragraph{Dalla funzione di trasferimento all'equazione alle differenze.}
+Il percorso è sempre bidirezionale: data $H(z)$, si ricava l'equazione alle differenze moltiplicando entrambi i membri per il denominatore, espandendo e antitrasformando termine per termine. Questo passaggio sarà utilizzato esplicitamente nella derivazione dell'algoritmo di Pan-Tompkins, dove la funzione di trasferimento del filtro passa-basso è il punto di partenza e l'equazione alle differenze ne è la diretta conseguenza implementativa.
+
+\section{Segnale ECG digitale}
+\subsection{Campionamento e segnale discreto}
+Un elettrocardiografo digitale non registra $x(t)$ in modo continuo, ma ne acquisisce campioni a intervalli regolari di durata $T_s$ secondi, detto \textbf{periodo di campionamento}. Il segnale discreto risultante è:
+\[
+x[n] = x(nT_s), \quad n \in \mathbb{Z}
+\]
+La \textbf{frequenza di campionamento} è $f_s = 1/T_s$, misurata in Hz. Il segnale discreto $x[n]$ è quindi una successione numerica.
+
+\subsubsection{Teorema di Nyquist-Shannon}
+Il teorema di Nyquist-Shannon stabilisce la condizione necessaria e sufficiente affinché il campionamento non introduca perdita di informazione~\cite{nyquist1928, shannon1949}.
+
+\begin{theorem}[Nyquist-Shannon]
+	Sia $x(t) \in L^2(\mathbb{R})$ un segnale a banda limitata, ovvero tale che la sua trasformata di Fourier $X(f)$ soddisfi:
+	\[
+	X(f) = 0 \quad \forall\, |f| > f_{\max}
+	\]
+	Allora $x(t)$ è completamente determinato dai suoi campioni $x[n] = x(n/f_s)$ se e solo se:
+	\[
+	f_s > 2\, f_{\max}
+	\]
+\end{theorem}
+
+La frequenza $f_N = f_s/2$ è detta \textbf{frequenza di Nyquist}. Se questa condizione non è rispettata, componenti ad alta frequenza si sovrappongono a componenti a bassa frequenza nel segnale campionato, questo fenomeno è chiamato \textbf{aliasing} e porta alla creazione di distorsioni irrecuperabili in fase di ricostruzione.
+
+\paragraph{Applicazione all'ECG.}
+Il contenuto spettrale di un segnale ECG clinicamente rilevante si distribuisce approssimativamente nell'intervallo $[0.05, 150]\,\text{Hz}$, come riportato in tabella~\ref{tab:ecg_bands}~\cite{bailey1990aha, kligfield2007aha}.
+
+\begin{table}[h!]
+	\centering
+	\begin{tabular}{lc}
+		\toprule
+		\textbf{Componente} & \textbf{Banda (Hz)} \\
+		\midrule
+		Baseline wander     & $0.05$ -- $0.5$  \\
+		Onde P e T          & $0.5$ -- $10$    \\
+		Complesso QRS       & $5$ -- $40$      \\
+		Alta frequenza      & fino a $150$     \\
+		\bottomrule
+	\end{tabular}
+	\caption{Bande di frequenza delle principali componenti del
+		segnale ECG~\cite{bailey1990aha}.}
+	\label{tab:ecg_bands}
+\end{table}
+
+Per rispettare il teorema di Nyquist sulla componente più rapida ($150\,\text{Hz}$), la frequenza di campionamento minima teorica sarebbe $f_s > 300\,\text{Hz}$. Nella pratica clinica si utilizzano $f_s = 500\,\text{Hz}$ oppure $f_s = 1000\,\text{Hz}$ (500 nel nostro caso), con un margine di sicurezza che tiene conto anche della necessità di ricostruire accuratamente la morfologia del QRS~\cite{kligfield2007aha}. Prima del campionamento, un \textbf{filtro anti-aliasing} (passa-basso analogico con frequenza di taglio $\leq f_N$) viene sempre applicato al segnale continuo per eliminare le componenti che violerebbero il teorema.
+
+\subsubsection{Quantizzazione}
+Oltre al campionamento temporale, il convertitore analogico-digitale (ADC) dell'elettrocardiografo introduce una \textbf{quantizzazione} in ampiezza: il valore continuo $x(nT_s) \in \mathbb{R}$ viene approssimato al più vicino livello discreto tra i $2^B$ disponibili, dove $B$ è il numero di bit del convertitore.
+
+La \textbf{risoluzione in ampiezza} (o LSB, \textit{Least Significant Bit}) è:
+\[
+\Delta = \frac{V_{\max} - V_{\min}}{2^B}
+\]
+Un ECG clinico tipico utilizza $B = 12$ oppure $B = 16$ bit~\cite{kligfield2007aha}. Con $B = 12$ e un range dinamico di $\pm 5\,\text{mV}$ si ottiene:
+\[
+\Delta = \frac{10\,\text{mV}}{2^{12}} = \frac{10}{4096}
+\approx 2.4\,\mu\text{V}
+\]
+ampiamente sufficiente a risolvere tutte le componenti diagnosticamente rilevanti. L'errore introdotto dalla quantizzazione è modellato come \textbf{rumore di quantizzazione}, uniformemente distribuito nell'intervallo $[-\Delta/2,\, +\Delta/2]$, con potenza:
+\[
+\sigma_q^2 = \frac{\Delta^2}{12}
+\]
+
+\subsection{Preprocessing e filtraggio}
+\label{sec:preprocessing}
+Prima di estrarre qualsiasi informazione clinicamente rilevante da un segnale ECG, è necessario pulirlo dal rumore. Un segnale ottenuto da un elettrocardiografo reale non è mai il segnale fisiologico puro: è sempre la sovrapposizione di quest'ultimo con diverse sorgenti di disturbo, alcune di origine biologica, altre di origine strumentale o ambientale~\cite{sornmo2005bioelectrical}. Il preprocessing ha lo scopo di attenuare tali disturbi portando il segnale in condizioni adatte all'analisi successiva, senza alterarne le componenti diagnosticamente rilevanti.
+
+\subsubsection{Modello del rumore}
+Il segnale acquisito $\tilde{x}[n]$ può essere modellato come la sovrapposizione del segnale ECG ideale $x[n]$ e di tre componenti di disturbo principali:
+\[
+\tilde{x}[n] = x[n] + \eta_{BW}[n] + \eta_{PL}[n] +
+\eta_{EM}[n]
+\]
+dove $\eta_{BW}[n]$ è il baseline wander, $\eta_{PL}[n]$ è l'interferenza di rete e $\eta_{EM}[n]$ è il rumore elettromiografico. Ciascuna componente occupa una banda di frequenza distinta, il che rende possibile progettare filtri selettivi che le attenuino separatamente senza danneggiare il segnale ECG~\cite{sornmo2005bioelectrical}.
+
+\begin{description}
+	\item[Baseline wander] Il baseline wander è una lenta deriva della linea di base del segnale, tipicamente causata dal movimento degli elettrodi sulla cute, dalla respirazione (che modifica l'impedenza toracica) e dalla sudorazione. Occupa la banda di frequenza $[0.05, 0.5]\,\text{Hz}$, ben al di sotto della banda del complesso QRS, e si manifesta come un'oscillazione lenta che sposta verticalmente il tracciato ECG, rendendo difficile la misurazione precisa del segmento ST e degli intervalli.
+	
+	\item[Interferenza di rete] L'interferenza di rete (\textit{powerline interference}) è causata dal campo elettromagnetico generato dalla rete elettrica domestica. Si presenta come una sinusoide a frequenza fissa di $50\,\text{Hz}$ in Europa, eventualmente con le sue armoniche. Pur essendo a frequenza fissa, cade parzialmente nella banda del QRS ($5$--$40\,\text{Hz}$) e pertanto non può essere eliminata con un semplice passa-basso.
+	
+	\item[Rumore elettromiografico] Il rumore elettromiografico (EMG) è generato dall'attività elettrica dei muscoli scheletrici circostanti durante il movimento del paziente. Occupa una banda ampia, tipicamente $[20, 500]\,\text{Hz}$, e si sovrappone alle componenti ad alta frequenza del QRS. È la componente più difficile da eliminare perché condivide parzialmente la banda del segnale di interesse~\cite{sornmo2005bioelectrical}.
+\end{description}
+
+\subsubsection{Rimozione del baseline wander}
+Poiché il baseline wander occupa frequenze molto basse rispetto al contenuto del segnale ECG, la sua rimozione si ottiene applicando un \textbf{filtro passa-alto} con frequenza di taglio $f_c \approx 0.5\,\text{Hz}$. Tuttavia, un filtro IIR del primo ordine con $f_c = 0.5\,\text{Hz}$ introduce una risposta transitoria molto lenta, proporzionale a $1/f_c$, che può richiedere diversi secondi per stabilizzarsi all'inizio della registrazione. Per questo motivo si preferisce spesso un approccio alternativo basato sulla stima della linea di base.
+
+\paragraph{Stima e sottrazione della linea di base.}
+L'idea è stimare $\eta_{BW}[n]$ applicando al segnale grezzo $\tilde{x}[n]$ una \textbf{media mobile} su una finestra sufficientemente lunga da catturare solo le variazioni lente, e poi sottrarla:
+\[
+\hat{\eta}_{BW}[n] = \frac{1}{W_{BW}} \sum_{k=0}^{W_{BW}-1}
+\tilde{x}[n-k]
+\]
+\[
+x_{hp}[n] = \tilde{x}[n] - \hat{\eta}_{BW}[n]
+\]
+La finestra $W_{BW}$ deve essere più lunga del periodo del QRS (circa $200\,\text{ms}$) per non distorcerlo; in pratica si utilizzano finestre di $600$--$1000\,\text{ms}$, corrispondenti a $300$--$500$ campioni con $f_s = 500\,\text{Hz}$.
+
+Un approccio più robusto, consigliato dalle linee guida AHA, è la doppia applicazione di un filtro mediano: prima con una finestra di $200\,\text{ms}$ (per rimuovere il complesso QRS dalla stima della baseline), poi con una finestra di $600\,\text{ms}$ (per lisciare la stima risultante)~\cite{sornmo2005bioelectrical}.
+
+\subsubsection{Rimozione dell'interferenza di rete}
+L'interferenza di rete a frequenza fissa si rimuove con un \textbf{filtro notch}, un filtro che attenua selettivamente una singola frequenza lasciando inalterate tutte le altre. La funzione di trasferimento di un filtro notch nel dominio Z presenta una coppia di zeri sulla circonferenza unitaria alla frequenza $f_0$ e una coppia di poli appena all'interno della circonferenza unitaria alla stessa frequenza, per garantire la stabilità:
+\[
+H_{notch}(z) = \frac{1 - 2\cos(2\pi f_0/f_s)\, z^{-1} + z^{-2}}
+{1 - 2r\cos(2\pi f_0/f_s)\, z^{-1} +
+	r^2 z^{-2}}
+\]
+dove $r \in (0,1)$ è il raggio dei poli, che controlla la larghezza della banda attenuata: valori di $r$ prossimi a $1$ producono una banda molto stretta (filtro selettivo), valori più piccoli allargano la banda di attenuazione. In pratica si utilizzano valori $r \approx 0.95$--$0.99$. Con $f_0 = 50\,\text{Hz}$ e $f_s = 500\,\text{Hz}$:
+\[
+\omega_0 = 2\pi \cdot \frac{50}{500} \approx
+0.628\,\text{rad/campione}
+\]
+
+\subsubsection{Filtraggio passa-banda}
+Dopo la rimozione del baseline wander e dell'interferenza di rete, si applica un \textbf{filtro passa-banda} che seleziona la banda del segnale ECG diagnosticamente rilevante, tipicamente $[0.5, 40]\,\text{Hz}$, attenuando le componenti residue fuori banda. Questo filtro è la versione più accurata e raffinata del filtro passa-banda approssimato usato nell'algoritmo di Pan-Tompkins; mentre quest'ultimo è ottimizzato per la velocità computazionale, il filtro qui descritto è progettato per massimizzare la qualità del segnale.
+
+\paragraph{Filtro di Butterworth.}
+Il filtro di Butterworth è un filtro IIR caratterizzato da una risposta in ampiezza \textbf{massimamente piatta} nella banda passante, ovvero priva di ondulazioni (\textit{ripple})~\cite{butterworth1930}. La risposta in ampiezza al quadrato di un filtro passa-basso di Butterworth di ordine $N$ con frequenza di taglio $\Omega_c$ è:
+\[
+|H(j\Omega)|^2 = \frac{1}{1 + \left(\Omega/\Omega_c\right)^{2N}}
+\]
+All'aumentare di $N$, la transizione tra banda passante e banda attenuata diventa più ripida, avvicinandosi al comportamento ideale. Per un'applicazione ECG tipica, un filtro di Butterworth di ordine $N = 4$--$6$ rappresenta un buon compromesso tra selettività e distorsione di fase.
+
+La progettazione avviene nel dominio continuo tramite trasformata di Laplace, e il filtro viene poi discretizzato tramite la \textbf{trasformazione bilineare}, che mappa il piano $s$ nel piano $z$, secondo:
+\[
+s = \frac{2}{T_s} \cdot \frac{1 - z^{-1}}{1 + z^{-1}}
+\]
+garantendo che un filtro stabile nel dominio continuo rimanga stabile nel dominio discreto~\cite{oppenheim1997dsp}. La trasformazione bilineare introduce una distorsione non lineare dell'asse delle frequenze (\textit{warping}), che viene compensata pre-distorcendo opportunamente le frequenze di taglio del progetto analogico.
+
+\paragraph{Filtro FIR a fase lineare.}
+Un'alternativa agli IIR è il filtro FIR progettato con il \textbf{metodo di Parks-McClellan}, che minimizza il massimo errore di approssimazione in banda passante e attenuata (\textit{equiripple})~\cite{parks1972chebyshev}. La funzione di trasferimento è:
+\[
+H_{FIR}(z) = \sum_{m=0}^{M} b_m\, z^{-m}
+\]
+Il vantaggio principale rispetto ai filtri IIR è la \textbf{fase lineare}: il ritardo introdotto è identico per tutte le frequenze, preservando la morfologia delle onde ECG senza distorcerne la forma. Lo svantaggio è la maggiore lunghezza del filtro: per ottenere la stessa selettività di un Butterworth di ordine 4, un FIR richiede tipicamente $M = 50$--$200$ coefficienti.
+
+\subsubsection{Pipeline di preprocessing completa}
+Le operazioni descritte nelle sezioni precedenti vengono applicate in sequenza, formando una \textbf{pipeline} di preprocessing. L'ordine delle operazioni non è arbitrario:rimuovere prima il baseline wander facilita la stima della soglia nel filtro notch; applicare il passa-banda per ultimo garantisce che nessuna componente di rumore introdotta dai filtri precedenti sopravviva all'uscita. La pipeline standard è quindi:
+
+\begin{enumerate}
+	\item Rimozione del baseline wander (filtro mediano o passa-alto)
+	\item Rimozione dell'interferenza di rete (filtro notch o LMS)
+	\item Filtraggio passa-banda $[0.5, 40]\,\text{Hz}$
+\end{enumerate}
+
+Il segnale risultante $x_{clean}[n]$ è la stima del segnale ECG ideale $x[n]$ su cui verranno eseguite tutte le analisi successive. È importante sottolineare che il preprocessing introduce inevitabilmente un \textbf{ritardo di gruppo}. Per i filtri FIR a fase lineare questo ritardo è costante e pari a $M/2$ campioni, facilmente compensabile; per i filtri IIR il ritardo dipende dalla frequenza e non è compensabile in modo esatto. Nelle applicazioni in cui la localizzazione temporale precisa dei picchi è critica, come nel rilevamento del QRS, il ritardo di gruppo deve essere tenuto in considerazione e, quando possibile, corretto.

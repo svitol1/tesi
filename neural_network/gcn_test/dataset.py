@@ -1,7 +1,7 @@
 """
 ================================================================================
 dataset.py
-Costruzione del grafo (firmato) delle 12 derivazioni ECG e Dataset PyG.
+Costruzione del grafo delle 12 derivazioni ECG e Dataset PyG.
 ================================================================================
 
 Ogni segmento ECG ha shape (12, T) con T = 500 campioni (finestra di

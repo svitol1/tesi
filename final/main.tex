@@ -1,0 +1,96 @@
+\documentclass[12pt,a4paper,openright,twoside]{report}
+
+\usepackage[T1]{fontenc}   
+\usepackage[utf8]{inputenc}
+\usepackage[a4paper]{geometry}
+\usepackage{fancyhdr}
+\usepackage{graphicx}
+\usepackage[pdfpagelabels]{hyperref}
+\usepackage{amsthm, amsmath, amssymb, mathtools}
+\usepackage{listings}
+\usepackage{booktabs}
+\usepackage{parskip} 
+\usepackage{array}
+\usepackage{siunitx}
+
+\newtheorem{theorem}{Teorema}
+
+\linespread{1.2}
+\raggedbottom{} % Non forzare il contenuto a riempire la pagina
+\setlength{\intextsep}{20pt}   % Spazio sopra e sotto le figure posizionate con [h] o [H]
+
+% Configurazione Intestazioni
+\pagestyle{fancy}
+\renewcommand{\chaptermark}[1]{\markboth{\thechapter.\ #1}{}}
+\renewcommand{\sectionmark}[1]{\markright{\thesection{} \ #1}{}}
+\rhead[\fancyplain{}{\bfseries\leftmark}]{\fancyplain{}{\bfseries\thepage}}
+\lhead[\fancyplain{}{\bfseries\thepage}]{\fancyplain{}{\bfseries\rightmark}}
+\cfoot{}
+
+
+
+\begin{document}
+%------------FRONTESPIZIO------------------
+\include{frontespizio}
+\pagestyle{empty}
+%------------FRONTESPIZIO------------------
+
+\tableofcontents
+
+% Margini classici: 3.5cm sopra/sotto e 3cm ai lati + rilegatura
+\newgeometry{
+    lines=33,
+    includehead,
+    vmarginratio=1:1, % Centra verticalmente il blocco delle 33 righe
+    bindingoffset=7mm, % Spazio per la rilegatura
+    inner=35mm,       % Margine interno (lato rilegatura)
+    outer=35mm        % Margine esterno
+}
+
+%Per la riga di intestazione
+\setlength{\headwidth}{\textwidth}
+\addtolength{\headwidth}{20pt} % Circa 7 mm
+
+\pagenumbering{arabic}
+\pagestyle{plain}
+%---------------CAPITOLO 1---------------
+\include{01-introduzione}
+%---------------CAPITOLO 1---------------
+
+%---------------CAPITOLO 2---------------
+\include{02-elettrocardiografia_e_basi_elettrofisiologiche}
+%---------------CAPITOLO 2---------------
+
+%---------------CAPITOLO 3---------------
+\include{03-stato_dell_arte}
+%---------------CAPITOLO 3---------------
+
+%---------------CAPITOLO 4---------------
+\include{04-basi_matematiche_ed_elaborazione_del_segnale}
+%---------------CAPITOLO 4---------------
+
+%---------------CAPITOLO 5---------------
+\include{05-dataset_e_simulazione_degli_scambi}
+%---------------CAPITOLO 5---------------
+
+%---------------CAPITOLO 6---------------
+\include{06-modello_proposto_cnn_gcn}
+%---------------CAPITOLO 6---------------
+
+%---------------CAPITOLO 7---------------
+\include{07-validazione_sperimentale_e_risultati}
+%---------------CAPITOLO 7---------------
+
+%---------------CAPITOLO 8---------------
+\include{08-discussione_dei_risultati}
+%---------------CAPITOLO 8---------------
+
+%---------------CAPITOLO 9---------------
+\include{09-conclusioni_e_sviluppi_futuri}
+%---------------CAPITOLO 9---------------
+
+%--------------BIBLIOGRAFIA--------------
+\bibliographystyle{plain}
+\bibliography{bibliografia.bib}
+%----------------------------------------
+\end{document}
