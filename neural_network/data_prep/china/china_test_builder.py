@@ -22,6 +22,7 @@ python build_physionet_test_dataset.py \
 
 import argparse
 import os
+import sys
 from pathlib import Path
 
 import numpy as np
@@ -29,14 +30,19 @@ import pandas as pd
 import wfdb
 from tqdm import tqdm
 
+project_root = Path(__file__).resolve().parents[1]
+if str(project_root) not in sys.path:
+    sys.path.insert(0, str(project_root))
+
 try:
-    from .common import (
+    from ..common import (
         SAMPLING_RATE,
         detect_r_peaks_v1_v5_average,
         segment_beats,
     )
-    from .preprocessing import preprocess_ecg
+    from ..preprocessing import preprocess_ecg
 except ImportError:
+
     from common import (
         SAMPLING_RATE,
         detect_r_peaks_v1_v5_average,
