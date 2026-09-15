@@ -120,10 +120,13 @@ def predict_recordings(
 ):
     """
     Aggrega le predizioni dei singoli segmenti a livello di intera registrazione.
+    Le registrazioni la cui classe di maggioranza non supera la soglia
+    vengono escluse dai risultati.
     """
     rec_true = []
     rec_pred = []
     recording_summary = []
+    excluded_count = 0
 
     for rec_id, seg_preds in recording_predictions.items():
         total_segments = len(seg_preds)
@@ -132,7 +135,11 @@ def predict_recordings(
         most_common_class, most_common_count = counts.most_common(1)[0]
         ratio = most_common_count / total_segments
 
-        final_pred = most_common_class if ratio > threshold else most_common_class
+        if ratio <= threshold:
+            excluded_count += 1
+            continue
+
+        final_pred = most_common_class
         gt_label = recording_ground_truth[rec_id]
 
         rec_true.append(gt_label)
@@ -148,7 +155,6 @@ def predict_recordings(
                 "correct": gt_label == final_pred,
             }
         )
-
     return np.array(rec_true), np.array(rec_pred), pd.DataFrame(recording_summary)
 
 
@@ -194,7 +200,7 @@ def main():
     print(f"--> Caricamento pesi modello da: {args.weights}")
     model = ECG_CNN(
         hidden_channels=(32, 64, 128),
-        dropout=0.18281203311944025,
+        dropout=0.16535473906212553,
         num_classes=num_classes,
         use_mlp_classifier=False
     ).to(device)
@@ -236,7 +242,7 @@ def main():
 
     # Aggregazione Majority Voting > 50%
     rec_true, rec_pred, summary_df = predict_recordings(
-        rec_preds_dict, rec_gt_dict, threshold=0.50
+        rec_preds_dict, rec_gt_dict, threshold=0.90
     )
 
     # Stampa del Report
