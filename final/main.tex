@@ -53,6 +53,12 @@
 \setlength{\headwidth}{\textwidth}
 \addtolength{\headwidth}{20pt} % Circa 7 mm
 
+\begin{abstract}
+	L'elettrocardiogramma a 12 derivazioni rimane lo strumento diagnostico più diffuso per la valutazione dell'attività elettrica cardiaca, ma la sua affidabilità clinica dipende criticamente dal corretto posizionamento degli elettrodi. Errori come lo scambio di elettrodi periferici o il malposizionamento di quelli precordiali sono tutt'altro che rari nella pratica clinica e possono generare tracciati "plausibili" ma clinicamente fuorvianti, in grado di simulare patologie inesistenti o mascherarne di reali, con conseguenze rilevanti per la sicurezza del paziente e per i costi sanitari.
+	
+	Questo lavoro propone un sistema automatico per il rilevamento del malposizionamento degli elettrodi a partire da un singolo tracciato ECG a 12 derivazioni, senza necessità di un tracciato di riferimento acquisito correttamente sullo stesso paziente. Il contributo si articola su tre livelli. In primo luogo, viene sviluppata una pipeline di simulazione degli scambi di elettrodi basata sulle relazioni algebriche tra le derivazioni standard e i potenziali dei singoli elettrodi (leggi di Einthoven e Goldberger, terminale centrale di Wilson), che consente di generare, a partire da database pubblici (PTB-XL e Georgia), un dataset ampio ed etichettato in modo affidabile. In secondo luogo, vengono progettate e confrontate tre architetture di deep learnin: un modello ibrido CNN+GCN, che integra l'estrazione di feature morfologiche per singola derivazione con una rete a grafo capace di modellare le relazioni spaziali tra le derivazioni, una CNN pura e un MLP. In terzo luogo, i modelli proposti vengono validati sperimentalmente su un insieme di test bilanciato, con un'analisi delle prestazioni complessive, e uno studio finale basato sull'analisi di specificità e sensibilità. Infine i risultati ottenuti vengono discussi criticamente, evidenziando i limiti legati all'uso di un dataset sintetico.	
+\end{abstract}
+
 \pagenumbering{arabic}
 \pagestyle{plain}
 %---------------CAPITOLO 1---------------
