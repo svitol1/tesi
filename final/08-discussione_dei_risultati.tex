@@ -1,16 +1,25 @@
 \chapter{Discussione dei risultati}
+\label{chap8}
+In questo capitolo verranno discussi i risultati presentati nel capitolo precedente e come questi hanno definito le scelte per l'avanzamento del progetto di tesi.
 
-% TODO: capitolo da scrivere.
-%
-% Contenuti previsti (da concordare con il relatore):
-%   - Analisi delle classi di scambio più complesse da identificare, con
-%     ipotesi sulle cause (es. scambi che alterano poco la morfologia del
-%     segnale, come LL-RL).
-%   - Studio di ablazione sulla matrice di adiacenza spaziale (es. confronto
-%     tra adiacenza geometrica fissa, grafo completamente connesso e/o
-%     adiacenza appresa dal modello).
-%   - Trasferibilità clinica del sistema: differenze tra scambi simulati
-%     algebricamente e scambi reali, possibili bias introdotti dalla
-%     simulazione.
-%   - Limiti legati all'utilizzo di un dataset sintetico e ai database di
-%     partenza (PTB-XL e Georgia).
+\paragraph{Scelta dell'architettura principale.} Tra le tre architetture mostrate (MLP, CNN, GCN) è stata scelta la migliore, per quanto riguarda le performance ottenute sullo split di test, per poter proseguire con ulteriori test.
+Come possiamo notare in Tabella~\ref{tab:model_confront}, la \emph{CNN} presenta delle performance migliori rispetto alle altre due architetture prosposte; inoltre la scelta è stata determinata, oltre che dalle performance, dalla grandezza della rete (riferito al peso in byte del file contenente i pesi della rete), e sotto questo punto di vista la \emph{CNN} prevale ancora.
+
+\paragraph{Dataset \emph{original} vs \emph{ridotto}.} Con la seconda tipologia di test, si è cercato di verificare se il dataset di training ridotto (Sezione~\ref{pulizia-dataset}) portasse degli effettivi miglioramente sulle prestazioni del modello.
+Come si può notare in Tabella~\ref{tab:orig_vs_reduced}, il test è stato inconcludente in quanto non si hanno miglioramenti nelle performance, anzi sono calate leggermente in alcuni casi. 
+Questo test presenta una problematica che merita di essere evidenziata: il dataset di training è stato ripulito con lo stesso modello che stiamo verificando, questo significa che anche se abbiamo utilizzato il test esposto nella Sezione~\ref{pulizia-dataset}, non possiamo essere certi che tutte le registrazioni che sono state eliminate presentassero effettivamente un malposizionamento. L'unico modo per essere certi è tramite revisione umana, per mano di cardiologi esperti, di tutto il dataset. Solo in questo modo possiamo essere sicuri di avere un dataset pulito.
+
+\paragraph{Dataset esterno}
+Con questo test è stata verificata la capacità dei modelli di generalizzare su registrazioni provenienti da un altro dataset (Sezione~\ref{china_dataset}). In Tabella~\ref{tab:china_confronto} possiamo notare come vengano riconfermate le discussioni del paragrafo precedente, dove i modelli allenati con il dataset originale performano generalmente meglio, tranne per alcune classi (le stesse in cui i modelli \emph{reduced} avevano delle performance leggeremente migliori).
+
+\paragraph{Dataset esterno modificato}
+Questo è il test principale con il quale è possibile misurare le performance effettive del modello.
+I risultati riportati in Tabella \ref{tab:china_mod_classi} mostrano un'accuratezza complessiva molto elevata in tutte le configurazioni (compresa tra il 97,98\% e il 99,96\%), un valore tuttavia poco informativo data la forte sproporzione tra le classi, come evidenziato dai volumi di \emph{TN} in Tabella \ref{tab:china_mod_confusione} (dell'ordine delle decine di migliaia contro poche centinaia di TP). È quindi sulla precisione, sul recall e sull'F1 della classe di scambio che vanno lette le reali capacità del modello.
+
+Le configurazioni LA\_LL, RA\_LA, RA\_LL e V1\_V2 confermano un comportamento solido: RA\_LL ottiene il miglior risultato in assoluto (F1 $\sim$.978, con recall pari a 1.0 e un numero di falsi positivi molto contenuto, 19 in tutti i seed), mentre RA\_LA raggiunge anch'essa recall perfetto ma con una precisione leggermente inferiore (.93-.94), dovuta a un numero di falsi positivi lievemente più alto (29-30). LA\_LL si distingue invece per l'andamento opposto: precisione molto alta (.978) ma recall più contenuto (.93-.94), segno che il modello tende in questo caso a essere predire la classe di scambio solo quando è molto "sicuro", a scapito di qualche falso negativo (26-31).
+
+Le configurazioni che coinvolgono le classi V2-V6 mostrano invece una forte diminuzione della precisione, pur mantenendo un recall quasi sempre pari o vicino a 1.0. Il caso più critico è V2\_V3, con una precisione di appena .33 (F1 $\sim$.496) a fronte di oltre 850 falsi positivi per seed (Tabella \ref{tab:china_mod_confusione}), a indicare una forte tendenza del modello a confondere segmenti di classi adiacenti con la classe di scambio. Le configurazioni V3\_V4, V4\_V5 e V5\_V6 seguono un andamento simile ma meno marcato, con precisione crescente al diminuire del numero di falsi positivi (rispettivamente $\sim$ .666, $\sim$.469 e $\sim$.38), suggerendo che l'errore del modello sia sistematico e correlato alla vicinanza temporale/posizionale tra le classi coinvolte, più che a un problema isolato di una singola configurazione.
+
+L'introduzione della soglia di confidenza al 90\% (Tabella \ref{tab:china_mod_treshold}) conferma questa ipotesi, infatti, per tutte le configurazioni critiche si osserva un netto calo dei falsi positivi, con un miglioramento della precisione (V3\_V4 passa da $\sim$.666 a $\sim$.833, V4\_V5 da $\sim$.469 a $\sim$.617, V5\_V6 da $\sim$.38 a $\sim$.66), a fronte di una perdita minima o nulla di recall (al più 3 falsi negativi aggiuntivi, come in V5\_V6). Fa eccezione V2\_V3, che pur beneficiando della soglia (precisione da $\sim$.33 a $\sim$.459) resta la configurazione più problematica, con un numero di falsi positivi ancora elevato (483); ciò conferma che la sovrapposizione tra le classi V2 e V3 rappresenta il limite più significativo del modello, non completamente risolvibile con la sola modifica della soglia di confidenza.
+
+

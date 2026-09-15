@@ -276,7 +276,7 @@ La Figura~\ref{fig:scambio_RA_LA} mostra, a titolo esemplificativo, l'effetto de
 \newpage
 
 \subsection{Regole di generazione del dataset finale}
-
+\label{final_dataset}
 L'applicazione pratica delle trasformazioni descritte sopra ai battiti segmentati segue alcune regole progettuali, motivate dalla necessità di produrre un dataset privo di possibili fonti di \emph{data leakage}. Tali regole si applicano ai soli split di training e validazione, gli unici in cui viene simulato il malposizionamento (si veda la Sezione~\ref{sec:beat_count_per_split} per il test).
 
 \begin{enumerate}
@@ -300,7 +300,7 @@ Al termine della pipeline, il dataset è organizzato in tre sottocartelle separa
 Questa struttura, oltre a facilitare il caricamento efficiente dei dati durante l'addestramento (ogni esempio può essere letto individualmente, senza necessità di caricare l'intero dataset in memoria), consente di ricostruire in ogni momento la provenienza di ciascun esempio, e mantiene traccia delle registrazioni escluse dalla pipeline, utile in fase di verifica della qualità del dataset. La distinzione tra i due file di indice (\texttt{final\_dataset\_index.csv} e \texttt{beats\_index.csv}) riflette inoltre la diversa natura dei due split: mentre train e validazione sono pensati per l'addestramento a livello di singolo battito, il test è organizzato per essere valutato a livello di intera registrazione tramite \emph{majority voting} su tutti i suoi battiti, aggregati tramite la colonna \texttt{ecg\_id}.
 
 \section{Terzo database solo per il test}
-\label{sec:china_dataset}
+\label{china_dataset}
 
 Oltre allo split di test ricavato da PTB-XL e Georgia (Sezione~\ref{sec:beat_count_per_split}), le prestazioni del modello sono state valutate anche su un \textit{terzo database, indipendente e utilizzato esclusivamente per il test}, con l'obiettivo di verificare la capacità di generalizzazione su registrazioni provenienti da un contesto di acquisizione completamente diverso da quello visto in fase di addestramento (diversa popolazione, apparecchiatura e origine geografica).
 

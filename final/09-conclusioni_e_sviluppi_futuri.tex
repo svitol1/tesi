@@ -1,11 +1,36 @@
 \chapter{Conclusioni e sviluppi futuri}
+\label{chap9}
 
-% TODO: capitolo da scrivere.
-%
-% Contenuti previsti (da concordare con il relatore):
-%   - Sintesi dei risultati ottenuti rispetto agli obiettivi posti nel
-%     Capitolo 1.
-%   - Possibili estensioni del lavoro: validazione su dati clinici reali
-%     con scambi documentati, estensione ad altre tipologie di
-%     malposizionamento (es. spazio intercostale errato), integrazione
-%     in software di refertazione ECG.
+In questo capitolo conclusivo vengono riassunti i principali risultati ottenuti nel corso del lavoro di tesi, evidenziando i contributi apportati e i limiti riscontrati; vengono infine esposte alcune possibili direzioni di sviluppo futuro.
+
+\section{Conclusioni}
+
+Il lavoro presentato in questa tesi ha affrontato il problema del riconoscimento automatico di scambi di elettrodi nell'acquisizione di tracciati ECG, un errore comune in ambito clinico che può compromettere l'interpretazione diagnostica del segnale. È stata sviluppata una pipeline completa, che comprende la costruzione e la pulizia del dataset di training, l'addestramento di diverse architetture di rete neurale e una metodologia di valutazione a livello di intera registrazione basata su majority voting, più robusta rispetto a una valutazione sul singolo battito.
+
+Il confronto tra le tre architetture proposte (MLP, CNN, GCN) ha evidenziato come la CNN rappresenti la scelta più efficace, sia in termini di accuratezza sia di dimensione del modello, risultando infatti nell'architettura di riferimento per tutti i test successivi.
+
+Il tentativo di migliorare la qualità del training set attraverso la rimozione delle registrazioni potenzialmente etichettate in modo errato (variante \emph{reduced}) non ha prodotto un miglioramento sistematico delle prestazioni rispetto al dataset \emph{original}. Come discusso, questo risultato è in parte attribuibile al fatto che la procedura di pulizia si basa sullo stesso modello oggetto di valutazione, un limite che può essere superato solo attraverso una revisione umana da parte di cardiologi esperti.
+
+La validazione su un dataset esterno (\emph{China}) ha permesso di verificare la capacità dei modelli di generalizzare su una popolazione e un protocollo di acquisizione differenti da quelli visti in training, confermando complessivamente la maggiore solidità dei modelli allenati sul dataset originale.
+
+Il test più significativo condotto in questa tesi resta quello sul dataset esterno modificato, in cui è stata simulata artificialmente una percentuale nota di scambi di elettrodi. I risultati hanno mostrato che il sistema è in grado di identificare con ottima precisione e recall gli scambi che coinvolgono le derivazioni degli arti e il caso V1\_V2, mentre le prestazioni calano sensibilmente per gli scambi tra derivazioni precordiali adiacenti (V2\_V3 peggiori performance), a causa di una forte tendenza del modello a confondere segmenti di classi adiacenti con la classe di scambio. L'introduzione di una soglia di confidenza più elevata si è dimostrata una strategia efficace per ridurre, senza tuttavia risolvere del tutto, questo problema.
+
+Nel complesso, il sistema sviluppato dimostra che un approccio basato su reti neurali convoluzionali applicate al segnale ECG è in grado di rilevare in modo affidabile la maggior parte degli scambi di elettrodi più clinicamente rilevanti, pur presentando margini di miglioramento evidenti tra derivazioni precordiali vicine tra loro.
+
+\section{Sviluppi futuri}
+
+Sulla base dei risultati ottenuti e dei limiti individuati, si possono identificare diverse direzioni per estendere il presente lavoro:
+
+\begin{itemize}
+	\item \textbf{Revisione clinica del dataset.} Per superare il limite metodologico discusso a proposito della pulizia del training set, sarebbe opportuno sottoporre le registrazioni candidate a una revisione da parte di cardiologi esperti, in modo da ottenere un dataset \emph{reduced} realmente validato e verificare se questo porti a un miglioramento effettivo delle prestazioni.
+	
+	\item \textbf{Miglioramento della distinzione tra derivazioni precordiali adiacenti.} Il calo di precisione osservato per le configurazioni V2\_V3, V3\_V4, V4\_V5 e V5\_V6 suggerisce la necessità di introdurre feature aggiuntive o rappresentazioni del segnale più informative (ad esempio basate sulla morfologia dell'onda R o su trasformazioni tempo-frequenza) in grado di catturare meglio le differenze geometriche tra derivazioni precordiali adiacenti.
+	
+	\item \textbf{Modello multi-classe unificato.} L'attuale approccio prevede modelli distinti per ciascuna coppia di derivazioni; un possibile sviluppo consiste nella progettazione di un singolo modello in grado di riconoscere simultaneamente tutte le tipologie di scambio, valutandone i vantaggi in termini di semplicità di deployment e le eventuali perdite di prestazioni rispetto ai modelli specializzati. Un'altra soluzione può essere la creazione di due modelli multi-classe: uno per le derivazioni periferiche e l'altro per le precordiali; in modo da poter concentrare ogni modello su riconoscimenti affini.
+	
+	\item \textbf{Soglia di confidenza adattiva.} I risultati ottenuti con la soglia al 90\% mostrano un buon compromesso tra precisione e recall per le classi più critiche; un possibile sviluppo è la definizione di soglie ottimizzate per singola classe, eventualmente determinate in modo automatico a partire dalle curve precision-recall.
+	
+	\item \textbf{Estensione a ulteriori dataset esterni.} Per rafforzare la valutazione della capacità di generalizzazione del sistema, sarebbe utile testare i modelli su ulteriori dataset pubblici, provenienti da popolazioni, dispositivi di acquisizione e protocolli clinici differenti da quelli già considerati.
+	
+	\item \textbf{Integrazione in ambito clinico.} Infine, un possibile sviluppo applicativo consiste nell'integrazione del sistema come modulo di controllo qualità in tempo reale all'interno dei software di acquisizione ECG, in grado di segnalare in rempo reale al personale sanitario un probabile errore di posizionamento degli elettrodi prima della refertazione del tracciato.
+\end{itemize}

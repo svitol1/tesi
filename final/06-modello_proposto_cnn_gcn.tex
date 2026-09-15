@@ -1,11 +1,11 @@
 \chapter{Architetture proposte}
 \label{chap_6}
-Lo stato dell'arte per la classificazione di varie patologie è l'utilizzo di algoritmi di deep learning; in questo capitolo tratteremo le tre architetture implementate nel presente lavoro di tesi: un \textbf{Multi-Layer Perceptron} (MLP), una \textbf{Convolutional Neural Network} (CNN) monodimensionale e una \textbf{Graph Convolutional Network} (GCN) con backbone convoluzionale. Le tre architetture vengono presentate in ordine di complessità crescente, sia dal punto di vista strutturale sia da quello delle formulazioni matematiche necessarie alla loro comprensione. Per ognuna, gli iperparametri specifici (numero di layer, numero di neuroni/filtri, dimensione dei kernel, ecc.) sono stati determinati tramite ottimizzazione bayesiana con \textbf{Optuna}, ripetuta separatamente per ciascuna configurazione del problema, in funzione del tipo di inversione degli elettrodi da rilevare e del numero di classi del task di classificazione considerato.
+Lo stato dell'arte per la classificazione di varie patologie è l'utilizzo di algoritmi di deep learning \cite{goodfellow2016deep,hannun2019cardiologist}; in questo capitolo tratteremo le tre architetture implementate nel presente lavoro di tesi: un \emph{Multi-Layer Perceptron} (MLP), una \emph{Convolutional Neural Network} (CNN) monodimensionale e una \emph{Graph Convolutional Network} (GCN) con backbone convoluzionale. Le tre architetture vengono presentate in ordine di complessità crescente, sia dal punto di vista strutturale sia da quello delle formulazioni matematiche necessarie alla loro comprensione. Per ognuna, gli iperparametri specifici (numero di layer, numero di neuroni/filtri, dimensione dei kernel, ecc.) sono stati determinati tramite ottimizzazione bayesiana con \emph{Optuna} \cite{akiba2019optuna}, ripetuta separatamente per ciascuna configurazione del problema (tipo di inversione e numero di classi).
 
 \section{Multi-Layer Perceptron}
 \label{sec:mlp}
 
-Il \textbf{Multi-Layer Perceptron} (MLP) rappresenta l'architettura più semplice tra quelle proposte ed è stato utilizzato come modello di baseline. Si tratta di una rete neurale \textit{feed-forward} completamente connessa (\textit{fully connected}), in cui ogni neurone di un layer riceve in ingresso l'output di tutti i neuroni del layer precedente. La rete è organizzata in un layer di ingresso, uno o più layer nascosti e un layer di uscita, la cui dimensione dipende dal numero di classi del problema di classificazione affrontato. Il numero di layer nascosti e il numero di neuroni per layer sono stati determinati tramite ottimizzazione con Optuna, in funzione della specifica configurazione del task.
+Il \emph{Multi-Layer Perceptron} (MLP) rappresenta l'architettura più semplice tra quelle proposte ed è stato utilizzato come modello di baseline. Si tratta di una rete neurale \textit{feed-forward} completamente connessa (\textit{fully connected}), in cui ogni neurone di un layer riceve in ingresso l'output di tutti i neuroni del layer precedente. La rete è organizzata in dodici layer di ingresso, uno o più layer nascosti e un layer di uscita, la cui dimensione dipende dal numero di classi del problema di classificazione affrontato.
 
 \subsection{Funzioni di Attivazione}
 
@@ -21,7 +21,7 @@ Le funzioni di attivazione più comuni sono:
 
 \subsection{Funzione di Loss}
 
-La \textbf{loss function} (funzione di costo) quantifica l'errore tra le previsioni del modello $\hat{y}$ e i valori reali $y$ nel training set. L'obiettivo dell'apprendimento è minimizzare questa funzione.
+La \emph{loss function} (funzione di costo) quantifica l'errore tra le previsioni del modello $\hat{y}$ e i valori reali $y$ nel training set. L'obiettivo dell'apprendimento è minimizzare questa funzione.
 
 Le loss function più utilizzate sono:
 
@@ -39,7 +39,7 @@ Le loss function più utilizzate sono:
 \end{itemize}
 
 \subsection{Fondamenta matematiche}
-In questa sezione richiameremo alcuni strumenti di calcolo differenziale, necessari per la comprensione dell'aggiornamento dei pesi di una rete tramite l'\textbf{algoritmo di backpropagation}:
+In questa sezione richiameremo alcuni strumenti di calcolo differenziale, necessari per la comprensione dell'aggiornamento dei pesi di una rete tramite l'algoritmo di \emph{backpropagation}:
 
 \subsubsection{Chain Rule}
 La chain rule è la formula fondamentale per il calcolo della derivata di una funzione composta. Siano $g:\mathbb{R}\to\mathbb{R}$ e $f:\mathbb{R}\to\mathbb{R}$ derivabili, allora $g\circ f:\mathbb{R}\to\mathbb{R}$ è anch'essa derivabile, e se poniamo $h(x)=g(f(x))$, abbiamo che:
@@ -94,11 +94,11 @@ D_vf(x_0,\,y_0)=||\nabla f(x_0,\,y_0)||\cdot||v||\cdot\cos(\alpha)
 dove $\alpha$ indica l'angolo tra il versore e il gradiente. Osservando che $||v||=1$ e $-1\le\cos(\alpha)\le 1$ possiamo dire che $D_vf(x_0,\,y_0)$ assume valore \textbf{massimo} quando $\cos(\alpha)=1\to\alpha=0$, cioè se $v$ ha stessa direzione e verso del gradiente; viceversa assume valore \textbf{minimo} quando $\cos(\alpha)=-1\to\alpha=\pi$, cioè quando $v$ ha stessa direzione ma verso opposto al gradiente.
 
 \subsection{Algoritmo di Backpropagation}
-Uno dei primi algoritmi proposti per il calcolo dei pesi in una rete neurale è il metodo iterativo noto come metodo di backpropagation. La riscoperta di questo metodo verso la metà degli anni '80 da parte di Rumelhart, Hinton e Williams ha reso possibile definire algoritmi di addestramento per reti multistrato, ed è stato quindi alla base del successivo sviluppo degli studi sulle reti neurali. L'algoritmo è legato essenzialmente alla tecnica utilizzata per il calcolo delle derivate della funzione di errore, basata sulle regole di derivazione delle funzioni composte.
+Uno dei primi algoritmi proposti per il calcolo dei pesi in una rete neurale è il metodo iterativo noto come metodo di backpropagation. La riscoperta di questo metodo verso la metà degli anni '80 da parte di Rumelhart, Hinton e Williams \cite{rumelhart1986backprop} ha reso possibile definire algoritmi di addestramento per reti di grandi dimensioni, ed è stato quindi alla base del successivo sviluppo sulle reti neurali. L'algoritmo utilizza essenzialmente la tecnica utilizzata per il calcolo delle derivate della funzione di errore, basata sulle regole di derivazione delle funzioni composte.
 
 \subsubsection{Percorso generale di esecuzione}
 
-Prima di tutto, è necessario definire come \textbf{epoca} il compimento di una fase di training, cioè quando tutto il dataset di training è passato attraverso la rete. Il dataset di training viene suddiviso in piccoli \emph{batch} (dimensione 16, 32, 64 ecc.), per ognuno si procede con il calcolo della funzione di loss $L(y, \hat{y})$, per poi proseguire con il calcolo della funzione di costo:
+Prima di tutto, è necessario definire come \emph{epoca} il compimento di una fase di training, cioè quando tutto il dataset di training è passato attraverso la rete. Il dataset di training viene suddiviso in piccoli \emph{batch} (dimensione 16, 32, 64 ecc.), per ognuno si procede con il calcolo della funzione di loss $L(y, \hat{y})$, per poi proseguire con il calcolo della funzione di costo:
 \[
 C(w)=\frac{1}{n_T}\sum_{j=1}^{n_T}L(y^{(j)},\hat{y}^{(j)}(w))
 \]
@@ -175,31 +175,31 @@ dove $\eta$ è il learning rate. L'algoritmo procede layer per layer, dall'uscit
 \section{Convolutional Neural Network}
 \label{sec:cnn}
 
-Le \textbf{Convolutional Neural Network} (CNN) sono una classe di reti neurali ispirate al funzionamento della corteccia visiva dei mammiferi. Nascono con l'idea di processare immagini e, a differenza delle reti neurali completamente connesse (MLP) descritte nella sezione precedente, le CNN non prevedono l'utilizzo di un neurone per ogni pixel, ma organizzano i neuroni stessi in tre dimensioni così da creare una serie di matrici chiamate \textbf{kernel} o \textbf{filtri}. Questo le rende particolarmente efficaci nell'estrazione automatica di feature da dati strutturati, come il segnale ECG monodimensionale considerato nel presente lavoro.
+Le \emph{Convolutional Neural Network} (CNN) sono una classe di reti neurali ispirate al funzionamento della corteccia visiva dei mammiferi (da togliere?). Nascono con l'idea di processare immagini \cite{lecun1998gradient} e, a differenza delle MLP descritte nella sezione precedente, le CNN non prevedono l'utilizzo di un neurone per ogni pixel, ma organizzano i neuroni stessi in tre dimensioni così da creare una serie di matrici chiamate \textbf{kernel} o \textbf{filtri}. Questo le rende particolarmente efficaci nell'estrazione automatica di feature da dati strutturati, come il segnale ECG monodimensionale considerato nel lavoro di questa tesi.
 
-Come per l'MLP, l'apprendimento della rete avviene tramite la minimizzazione di una \textbf{loss function} (Cross-Entropy per la classificazione multi-classe, si veda la Sezione~\ref{sec:mlp}), utilizzando le medesime funzioni di attivazione (ReLU, Sigmoid, Softmax) e lo stesso algoritmo generale di \textbf{backpropagation} basato sulla chain rule. Ciò che cambia sostanzialmente rispetto all'MLP è la natura delle operazioni svolte da ciascun layer, che vedremo nel dettaglio in questa sezione.
+Come per l'MLP, l'apprendimento della rete avviene tramite la minimizzazione di una \emph{loss function} (Cross-Entropy per la classificazione multi-classe, si veda la Sezione~\ref{sec:mlp}), utilizzando le medesime funzioni di attivazione (ReLU, Sigmoid, Softmax) e lo stesso algoritmo generale di \emph{backpropagation} basato sulla chain rule. Ciò che cambia sostanzialmente rispetto all'MLP è la natura delle operazioni svolte da ciascun layer, che vedremo nel dettaglio in questa sezione.
 
-Anche per la CNN, il numero di layer convoluzionali, il numero di filtri per layer, la dimensione dei kernel e la presenza/dimensione dei layer di pooling sono stati determinati tramite ottimizzazione con Optuna, in funzione della specifica configurazione del task di classificazione.
+Anche per la CNN, il numero di layer convoluzionali, il numero di filtri per layer, la dimensione dei kernel e la presenza/dimensione dei layer di pooling sono stati determinati tramite ottimizzazione con Optuna \cite{akiba2019optuna}, in funzione della configurazione del task di classificazione.
 
 \subsection{Architettura di una CNN}
 
 \subsubsection{Processo di convoluzione}
 
-Il \textbf{convolutional layer} è il componente principale di una CNN. Esso ha il compito di applicare tutti i kernel all'immagine in input tramite l'operazione di \textbf{convoluzione discreta}. Dato un input $I\in\mathbb{R}^{H\times W\times C}$ e un kernel $K\in\mathbb{R}^{m\times n}$, l'elemento in posizione $(i,j)$ della matrice di output, chiamata \textbf{feature map}, è calcolato come:
+Il \emph{convolutional layer} è il componente principale di una CNN. Esso ha il compito di applicare tutti i kernel all'immagine in input tramite l'operazione di \emph{convoluzione discreta}. Dato un input $I\in\mathbb{R}^{H\times W\times C}$ e un kernel $K\in\mathbb{R}^{m\times n}$, l'elemento in posizione $(i,j)$ della matrice di output, chiamata \emph{feature map}, è calcolato come:
 
 \[
 (I * K)(i, j) = \sum_{k=0}^{m-1} \sum_{l=0}^{n-1} I(i+k,\, j+l) \cdot K(k, l)
 \]
 
-Il filtro scorre sull'input con un passo definito dallo \textbf{stride}. Ogni filtro ha una quantità di pesi pari a $m\cdot n$ e sono condivisi su tutta l'immagine: questa proprietà, chiamata \textbf{weight sharing}, riduce drasticamente il numero di parametri rispetto a un layer completamente connesso e permette di apprendere feature locali indipendentemente dalla loro posizione.
+Il filtro scorre sull'input con un passo definito dallo \emph{stride}. Ogni filtro ha una quantità di pesi pari a $m\cdot n$ e sono condivisi su tutta l'immagine: questa proprietà, chiamata \emph{weight sharing}, riduce drasticamente il numero di parametri rispetto a un layer completamente connesso e permette di apprendere feature locali indipendentemente dalla loro posizione.
 
-Il risultato del layer convoluzionale è un insieme di feature map, una per ogni filtro applicato, che vengono poi passate alla funzione di attivazione.
+Il risultato del layer convoluzionale è un insieme di \emph{feature map}, una per ogni filtro applicato, che vengono poi passate alla funzione di attivazione.
 
 \subsubsection{Pooling Layer}
 
-I \textbf{pooling layer} hanno il compito di ridurre la dimensione spaziale delle feature map, rendendo la rete più efficiente e meno sensibile a piccole traslazioni dell'input (\textbf{invarianza traslazionale}).
+I \emph{pooling layer} hanno il compito di ridurre la dimensione spaziale delle feature map, rendendo la rete più efficiente e meno sensibile a piccole traslazioni dell'input (\emph{invarianza traslazionale}).
 
-Il tipo più comune è il \textbf{max pooling}: per ogni regione di dimensione $k \times k$ dell'input, viene selezionato il valore massimo. Un'alternativa è l'\textbf{average pooling}, che calcola la media dei valori nella regione. Il pooling non introduce nuovi parametri da apprendere, ma contribuisce a rendere le rappresentazioni più compatte e robuste.
+Il tipo più comune è il \emph{max pooling}: per ogni regione di dimensione $k \times k$ dell'input, viene selezionato il valore massimo. Un'alternativa è l'\emph{average pooling}, che calcola la media dei valori nella regione. Il pooling non introduce nuovi parametri da apprendere, ma contribuisce a rendere le rappresentazioni più compatte e robuste.
 
 \subsection{Calcolo del gradiente in una CNN}
 
@@ -207,7 +207,7 @@ A differenza di un MLP, in una CNN la struttura dei layer non è completamente c
 
 \subsubsection{Struttura delle variabili}
 
-In un layer convoluzionale $\ell$, l'input non è un vettore, ma un \textbf{tensore} a tre dimensioni $Z^{(\ell-1)}\in\mathbb{R}^{H\times W\times C}$, dove $H$ e $W$ sono le dimensioni spaziali e $C$ è il numero di canali (o feature map). Il kernel è anch'esso un tensore $K^{(\ell)} \in\mathbb{R}^{m\times n\times C}$, con $m\times n$ dimensioni spaziali. L'output del layer convoluzionale, prima della funzione di attivazione, è la \textbf{feature map}:
+In un layer convoluzionale $\ell$, l'input non è un vettore, ma un \textbf{tensore} a tre dimensioni $Z^{(\ell-1)}\in\mathbb{R}^{H\times W\times C}$, dove $H$ e $W$ sono le dimensioni spaziali e $C$ è il numero di canali (o feature map). Il kernel è anch'esso un tensore $K^{(\ell)} \in\mathbb{R}^{m\times n\times C}$, con $m\times n$ dimensioni spaziali. L'output del layer convoluzionale, prima della funzione di attivazione, è la \emph{feature map}:
 \[
 A^{(\ell)}_{ij}=\sum_{p=0}^{m-1}\sum_{q=0}^{n-1}\sum_{c=0}^{C-1}K^{(\ell)}_{pqc}\cdot Z^{(\ell-1)}_{i+p,\,j+q,\,c}+b^{(\ell)}
 \]
@@ -218,7 +218,7 @@ Z^{(\ell)}_{ij}=f\!\left(A^{(\ell)}_{ij}\right)
 
 \subsubsection{Segnale di errore nel layer convoluzionale}
 
-Per un layer convoluzionale $\ell$, il \textbf{segnale di errore} $\delta$ associato alla posizione $(i,j)$ è definito, analogamente al caso MLP, come la derivata parziale della loss rispetto alla preattivazione:
+Per un layer convoluzionale $\ell$, il \emph{segnale di errore} $\delta$ associato alla posizione $(i,j)$ è definito, analogamente al caso MLP, come la derivata parziale della loss rispetto alla preattivazione:
 \[
 \delta^{(\ell)}_{ij}=\frac{\partial L}{\partial A^{(\ell)}_{ij}}
 \]
@@ -227,7 +227,7 @@ Se il layer $\ell$ è un \textbf{layer nascosto}, come avviene per tutti i layer
 \[
 \delta^{(\ell)}_{ij}=f'\!\left(A^{(\ell)}_{ij}\right) \cdot\sum_{s}\sum_{t}\delta^{(\ell+1)}_{st}\cdot K^{(\ell+1)}_{i-s,\,j-t}
 \]
-L'operazione di somma pesata sui delta del layer successivo corrisponde a una \textbf{convoluzione} tra $\delta^{(\ell+1)}$ e il kernel $K^{(\ell+1)}$ ruotato di $180°$:
+L'operazione di somma pesata sui delta del layer successivo corrisponde a una convoluzione tra $\delta^{(\ell+1)}$ e il kernel $K^{(\ell+1)}$ ruotato di $180°$:
 \[
 \delta^{(\ell)}_{ij} = f'\!\left(A^{(\ell)}_{ij}\right) \cdot\left(\delta^{(\ell+1)}*\mathrm{rot}_{180}\!\left(K^{(\ell+1)}\right)\right)_{ij}
 \]
@@ -239,7 +239,7 @@ Il gradiente della funzione di loss rispetto a un singolo peso $K^{(\ell)}_{pq}$
 \[
 \frac{\partial L}{\partial K^{(\ell)}_{pq}}= \sum_{i}\sum_{j}\delta^{(\ell)}_{ij}\cdot Z^{(\ell-1)}_{i+p,\,j+q}
 \]
-Questa espressione è una \textbf{cross-correlazione} tra il segnale di errore $\delta^{(\ell)}$ e la feature map di input $Z^{(\ell-1)}$. A differenza del MLP, in cui il gradiente rispetto a un peso è il semplice prodotto $\delta_i^{(\ell)} \cdot z_j^{(\ell-1)}$, qui è necessario sommare su tutte le posizioni spaziali a causa del weight sharing: lo stesso peso $K_{pq}$ ha partecipato al calcolo di ogni elemento della feature map di output, quindi tutti questi contributi devono essere accumulati.
+Questa espressione è una \emph{cross-correlazione} tra il segnale di errore $\delta^{(\ell)}$ e la feature map di input $Z^{(\ell-1)}$. A differenza del MLP, in cui il gradiente rispetto a un peso è il semplice prodotto $\delta_i^{(\ell)} \cdot z_j^{(\ell-1)}$, qui è necessario sommare su tutte le posizioni spaziali a causa del weight sharing: lo stesso peso $K_{pq}$ ha partecipato al calcolo di ogni elemento della feature map di output, quindi tutti questi contributi devono essere accumulati.
 
 In forma vettoriale compatta, l'intero gradiente del kernel si scrive come:
 \[
@@ -256,7 +256,7 @@ Il gradiente rispetto al bias $b^{(\ell)}$ è la somma di tutti i delta del laye
 
 \subsubsection{Backpropagation attraverso il Pooling Layer}
 
-Il pooling layer non contiene pesi da apprendere, ma è comunque necessario propagare il segnale di errore attraverso di esso. Nel caso del \textbf{max pooling}, durante il forward pass viene memorizzata la posizione del valore massimo in ogni regione $k\times k$ (\textit{argmax}). Nella backprop, il delta viene assegnato esclusivamente all'elemento che aveva valore massimo, mentre tutti gli altri ricevono un contributo nullo:
+Il pooling layer non contiene pesi da apprendere, ma è comunque necessario propagare il segnale di errore attraverso di esso. Nel caso del \emph{max pooling}, durante il forward pass viene memorizzata la posizione del valore massimo in ogni regione $k\times k$ (\textit{argmax}). Nella backprop, il delta viene assegnato esclusivamente all'elemento che aveva valore massimo, mentre tutti gli altri ricevono un contributo nullo:
 \[
 \delta^{(\ell)}_{ij}=
 \begin{cases}
@@ -264,7 +264,7 @@ Il pooling layer non contiene pesi da apprendere, ma è comunque necessario prop
 	0&\text{altrimenti}
 \end{cases}
 \]
-Nel caso dell'\textbf{average pooling}, il delta viene distribuito uniformemente su tutti gli elementi della regione:
+Nel caso dell'\emph{average pooling}, il delta viene distribuito uniformemente su tutti gli elementi della regione:
 \[
 \delta^{(\ell)}_{ij} =\frac{1}{k^2}\,\delta^{(\ell+1)}_{\lfloor i/k\rfloor,\,\lfloor j/k\rfloor}
 \]
@@ -283,7 +283,7 @@ Le CNN nascono per l'elaborazione di immagini bidimensionali, ma il loro meccani
 
 \subsubsection{Convoluzione 1D}
 
-In una convoluzione 1D, abbiamo sempre il tensore $\mathbf{Z}\in\mathbb{R}^{H\times W\times C}$, ma il parametro $H$ ha valore uno, mentre $C$ dipende dai canali in ingresso, dodici nel nostro caso; i filtri seguono la stessa logica $\mathbf{K}\in\mathbb{R}^{n\times m\times C}\to\mathbf{K}\in\mathbb{R}^{n\times C}$. L'operazione di convoluzione 1D produce sempre una feature map preattivata $\mathbf{A}$ definita come:
+In una convoluzione 1D, abbiamo sempre il tensore $\mathbf{Z}\in\mathbb{R}^{H\times W\times C}$, ma il parametro $H$ ha valore uno, mentre $C$ dipende dai canali in ingresso, dodici nel nostro caso; i filtri seguono la stessa logica $\mathbf{K}\in\mathbb{R}^{n\times m\times C}\to\mathbf{K}\in\mathbb{R}^{n\times C}$. L'operazione di convoluzione 1D produce sempre una \emph{feature map} preattivata $\mathbf{A}$ definita come:
 \[
 A_i^{(\ell)}=\sum_{j=0}^{n-1}Z_{i+j}^{(\ell-1)}\cdot K_j^{(\ell)}+b^{(\ell)}\xrightarrow{attivazione}Z_i^{(\ell)}=f\left(A_i^{(\ell)}\right)
 \]
@@ -298,7 +298,7 @@ questa operazione può essere semplificata esattamente come spiegato nella sezio
 
 \subsection{Vantaggi per i segnali ECG}
 
-L'applicazione delle CNN 1D ai segnali ECG offre numerosi vantaggi rispetto agli approcci tradizionali basati su feature engineering manuale:
+L'applicazione delle CNN 1D ai segnali ECG offre numerosi vantaggi rispetto agli approcci tradizionali basati su feature engineering manuale \cite{hannun2019cardiologist}:
 
 \begin{itemize}
 	\item \textbf{Estrazione automatica delle feature}: la rete apprende autonomamente quali caratteristiche morfologiche (ampiezza e durata dell'onda P, complesso QRS, onda T, intervallo ST) sono discriminative per ogni classe, senza richiedere conoscenze a priori.
@@ -313,16 +313,18 @@ L'applicazione delle CNN 1D ai segnali ECG offre numerosi vantaggi rispetto agli
 \section{Graph Convolutional Network con CNN Backbone}
 \label{sec:gcn}
 
-L'ultima e più complessa architettura proposta è una \textbf{Signed Graph Convolutional Network} che utilizza una CNN 1D, analoga a quella descritta nella Sezione~\ref{sec:cnn}, come \textbf{backbone} per l'estrazione delle feature da ciascuna delle 12 derivazioni del segnale ECG. A differenza della CNN standard, dove le 12 derivazioni sono trattate come canali di un unico tensore di input, in questa architettura la backbone elabora ciascuna derivazione \emph{singolarmente e con pesi condivisi}, producendo un vettore di feature per ciascun nodo del grafo; è poi lo strato di \textit{message passing} a modellare esplicitamente come queste rappresentazioni si relazionano tra le diverse derivazioni, sfruttando una topologia di grafo \textbf{firmata (signed)} costruita a partire dalla geometria delle derivazioni.
+L'ultima e più complessa architettura proposta è una \emph{Signed Graph Convolutional Network} che utilizza una CNN 1D, analoga a quella descritta nella Sezione~\ref{sec:cnn}, come \emph{backbone} per l'estrazione delle feature da ciascuna delle 12 derivazioni del segnale ECG. A differenza della CNN standard, dove le 12 derivazioni sono trattate come canali di un unico tensore di input, in questa architettura la backbone elabora ciascuna derivazione \emph{singolarmente e con pesi condivisi}, producendo un vettore di feature per ciascun nodo del grafo, poi, è lo strato di \textit{message passing} \cite{kipfwelling2017} a modellare esplicitamente come queste rappresentazioni si relazionano tra le diverse derivazioni, sfruttando una topologia di grafo \emph{signed} \cite{derr2018signed} costruita a partire dalla geometria delle derivazioni.
 
-Anche in questo caso, il numero di layer di message passing, la dimensione delle feature nodali e nascoste, il tipo di classificatore finale (lineare o MLP) e la scelta tra message passing signed o basato su attenzione sono stati determinati tramite ottimizzazione con Optuna, in funzione della configurazione specifica del task.
+Come per l'MLP e la CNN, anche l'addestramento della GCN avviene tramite \emph{backpropagation} basata sulla chain rule e discesa del gradiente, minimizzando la stessa Cross-Entropy Loss introdotta nella Sezione~\ref{sec:mlp}. Le funzioni di attivazione sono una ReLU, utilizzata nel \emph{backbone} convoluzionale, e la \emph{LeakyReLU} \cite{maas2013rectifier} nello strato di message passing \ref{sec:signed_message_passing}.
 
-\subsection{Estrazione delle feature nodali: la CNN Backbone}
+Anche in questo caso, il numero di layer di message passing, la dimensione delle feature nodali e nascoste e il tipo di classificatore finale (lineare o MLP), sono stati determinati tramite ottimizzazione con \emph{Optuna} \cite{akiba2019optuna}, in funzione della configurazione specifica del task.
+
+\subsection{Estrazione delle feature nodali}
 \label{sec:lead_cnn_encoder}
 
-Ogni segmento ECG in ingresso ha dimensione $(12, T)$, con $T=500$ campioni corrispondenti a una finestra di un secondo campionata a $500\,\text{Hz}$ centrata sul picco dell'onda R. Prima che il grafo venga costruito, ciascuna delle 12 derivazioni viene elaborata \textbf{singolarmente} da una CNN 1D condivisa (\textit{LeadCNNEncoder}), che produce per ogni derivazione un vettore di feature di dimensione fissata $d_{\text{node}}$. Essendo i pesi condivisi tra tutte le derivazioni, la rete apprende pattern morfologici generici (onda P, complesso QRS, onda T) indipendentemente dalla derivazione specifica; sarà poi il layer di message passing a modellare come queste feature si relazionano \emph{tra} le derivazioni.
+Ogni segmento ECG in ingresso ha dimensione $(12, T)$, con $T=500$ campioni corrispondenti a una finestra di un secondo campionata a $500\,\text{Hz}$ centrata sul picco dell'onda R. Prima che il grafo venga costruito, ciascuna delle 12 derivazioni viene elaborata \textbf{singolarmente} da una CNN 1D condivisa (\textit{LeadCNNEncoder}) \cite{lecun1998gradient}, che produce per ogni derivazione un vettore di feature di dimensione fissata $d_{\text{node}}$. Essendo i pesi condivisi tra tutte le derivazioni, la rete apprende pattern morfologici generici (onda P, complesso QRS, onda T) indipendentemente dalla derivazione specifica; sarà poi il layer di message passing a modellare come queste feature si relazionano tra le derivazioni.
 
-La backbone è composta da tre blocchi convoluzionali, ciascuno seguito da \textit{Batch Normalization} e attivazione ReLU, con \textit{max pooling} dopo i primi due blocchi:
+La backbone è composta da tre blocchi convoluzionali, ciascuno seguito da \textit{Batch Normalization} \cite{ioffe2015batchnorm} e attivazione ReLU, con \textit{max pooling} dopo i primi due blocchi:
 \[
 \begin{aligned}
 	\text{Blocco 1:}\quad &\text{Conv1D}(1 \to 16,\; k=7) \to \text{BN} \to \text{ReLU} \to \text{MaxPool}(2) \\
@@ -343,19 +345,19 @@ I due MaxPool intermedi riducono progressivamente la lunghezza temporale $T=500\
 \subsection{Modellazione del Grafo ECG basata su Vettori di Derivazione 3D}
 \label{sec:matrice_geometrica_3d}
 
-Le 12 derivazioni sono modellate come nodi di un grafo $\mathcal{G} = (\mathcal{V}, \mathcal{E}, \mathbf{W})$, dove $\mathcal{V} = \{v_1, \dots, v_{12}\}$ rappresenta le derivazioni nell'ordine standard:
+Le 12 derivazioni sono modellate come nodi di un grafo $\mathcal{G} = (\mathcal{V}, \mathcal{E}, \mathcal{W})$, dove $\mathcal{V} = \{v_1, \dots, v_{12}\}$ rappresenta le derivazioni nell'ordine standard:
 \begin{equation}
 	\mathcal{V} = \{\text{I, II, III, aVR, aVL, aVF, V1, V2, V3, V4, V5, V6}\}
 \end{equation}
-Anziché lasciare che la rete apprenda la struttura del grafo in modo del tutto libero, si è scelto di imporre un \textbf{bias induttivo spaziale fisso}, derivato dalla reale geometria delle derivazioni, che vincola il \textit{message passing} alle leggi fisico-geometriche della propagazione del potenziale elettrico cardiaco.
+Invece di lasciare che la rete apprenda la struttura del grafo in modo autonomo, si è scelto di imporre un \emph{bias induttivo spaziale fisso}, derivato dalla reale geometria delle derivazioni \cite{malmivuo1995bioelectromagnetism,goldberger2017ecg}, che vincola il \textit{message passing} alle leggi fisiche della propagazione del potenziale elettrico cardiaco.
 
-L'attività elettrica del cuore può essere approssimata, in primo ordine, da un dipolo elettrico equivalente espresso da un vettore cardiaco istantaneo $\vec{D}(t) \in \mathbb{R}^3$. Ciascuna derivazione $i \in \mathcal{V}$ misura la proiezione di tale dipolo lungo il proprio asse di osservazione anatomico, identificato da un vettore unitario di orientamento $\vec{u}_i \in \mathbb{R}^3$:
+L'attività elettrica del cuore può essere approssimata da un dipolo elettrico equivalente, espresso da un vettore cardiaco istantaneo $\vec{D}(t) \in \mathbb{R}^3$. Ciascuna derivazione $i \in \mathcal{V}$ misura la proiezione di tale dipolo lungo il proprio asse di osservazione anatomico \ref{sec_ecg}, identificato da un vettore unitario di orientamento $\vec{u}_i \in \mathbb{R}^3$:
 \begin{equation}
 	V_i(t) \approx \vec{D}(t) \cdot \vec{u}_i
 \end{equation}
 
-\paragraph{Derivazioni Periferiche (Arti): Geometria 2D sul Piano Frontale.}
-Le derivazioni degli arti (I, II, III, aVR, aVL, aVF) sono vincolate al solo piano frontale ($z_i = 0$). I loro vettori unitari sono definiti calcolando seno e coseno dell'angolo di orientamento $\theta_i$ stabilito nel sistema esassiale di Einthoven-Goldberger:
+\paragraph{Derivazioni Periferiche.}
+Le derivazioni degli arti (I, II, III, aVR, aVL, aVF) sono vincolate al solo piano frontale ($z_i = 0$). I loro vettori unitari sono definiti calcolando seno e coseno dell'angolo di orientamento $\theta_i$ stabilito nel sistema esassiale di Einthoven-Goldberger \cite{goldberger2017ecg}:
 \begin{equation}
 	\begin{cases}
 		x_i = \cos(\theta_i) \\
@@ -364,8 +366,8 @@ Le derivazioni degli arti (I, II, III, aVR, aVL, aVF) sono vincolate al solo pia
 	\end{cases}
 \end{equation}
 
-\paragraph{Derivazioni Precordiali (V1--V6): Geometria 3D sul Torace.}
-Le 6 derivazioni precordiali sono unipolari e tridimensionali: misurano il potenziale elettrico tra un elettrodo sulla parete toracica e il \textit{Terminale Centrale di Wilson} (WCT), posizionato all'origine dello spazio tridimensionale $(0,0,0)$. Adottando la convenzione cartesiana toracica di Malmivuo-Plonsey (asse $+X$ verso sinistra, $+Y$ verso i piedi, $+Z$ verso la parete toracica anteriore), la posizione di ciascun elettrodo $V_i$ è definita da un angolo di \textit{azimuth} $\theta_h$ e uno di \textit{elevazione} $\phi_v$, convertiti in coordinate cartesiane unitarie:
+\paragraph{Derivazioni Precordiali.}
+Le 6 derivazioni precordiali sono unipolari e non "ancorate" a un piano come le periferiche; misurano il potenziale elettrico tra un elettrodo sulla parete toracica e il \textit{Terminale Centrale di Wilson} (WCT), posizionato all'origine dello spazio tridimensionale $(0,0,0)$ e calcolato come punto medio dei tre elettrodi periferici. Adottando la convenzione cartesiana toracica di Malmivuo-Plonsey \cite{malmivuo1995bioelectromagnetism} (asse $+X$ verso sinistra, $+Y$ verso i piedi, $+Z$ verso la parete toracica anteriore), la posizione di ciascun elettrodo $V_i$ è definita da un angolo di \textit{azimuth} $\theta_h$ e uno di \textit{elevazione} $\phi_v$, convertiti in coordinate cartesiane unitarie:
 \begin{equation}
 	\begin{cases}
 		x_i = \cos(\phi_v) \cdot \cos(\theta_h) \\
@@ -374,30 +376,31 @@ Le 6 derivazioni precordiali sono unipolari e tridimensionali: misurano il poten
 	\end{cases}
 \end{equation}
 
-Come mostrato in Tabella~\ref{tab:lead_vectors_3d}, muovendosi da V1 a V6 la componente anteriore $z$ decade progressivamente da $0.923$ a $0.000$, mentre la componente laterale $x$ cresce da $-0.342$ a $+0.985$: per $V_6$ si ottiene un vettore $\vec{u}_{V6}\approx(0.985,-0.174,0.000)^T$ quasi parallelo a $\vec{u}_{\text{I}}=(1.000,0.000,0.000)^T$, codificando matematicamente l'evidenza clinica per cui Derivazione I e V6 osservano la medesima regione miocardica (parete laterale sinistra).
+Come mostrato in Tabella~\ref{tab:lead_vectors_3d}, muovendosi da V1 a V6 la componente anteriore $z$ decade progressivamente da $0.923$ a $0.000$, mentre la componente laterale $x$ cresce da $-0.342$ a $+0.985$: per $V_6$ si ottiene un vettore $\vec{u}_{V6}\approx(0.985,-0.174,0.000)^T$ quasi parallelo a $\vec{u}_{\text{I}}=(1.000,0.000,0.000)^T$, confermando matematicamente l'evidenza clinica per cui derivazione I e V6 osservano la medesima regione cardiaca (parete laterale sinistra).
 
 \begin{table}[htbp]
 	\centering
 	\caption{Coordinate tridimensionali unitarie e orientamenti degli assi di osservazione per le 12 derivazioni cardiache.}
 	\label{tab:lead_vectors_3d}
 	\small
+	\rowcolors{2}{gray!15}{white}
 	\begin{tabular}{l rr rrr p{4.2cm}}
 		\toprule
-		\textbf{Derivazione} & \textbf{Azimuth ($\theta_h$)} & \textbf{Elevazione ($\phi_v$)} & \textbf{$x$ (Sx)} & \textbf{$y$ (Inf)} & \textbf{$z$ (Ant)} & \textbf{Regione Anatomica} \\
+		\textbf{Derivazione} & \textbf{Azimuth ($\theta_h$)} & \textbf{Elevazione ($\phi_v$)} & \textbf{$x$ (Sx)} & \textbf{$y$ (Inf)} & \textbf{$z$ (Ant)} \\
 		\midrule
-		I   & $0^\circ$   & $0^\circ$   & $1.000$  & $0.000$  & $0.000$  & Laterale alta (Piano Frontale) \\
-		II  & $+60^\circ$  & $0^\circ$   & $0.500$  & $0.866$  & $0.000$  & Inferiore (Piano Frontale) \\
-		III & $+120^\circ$ & $0^\circ$   & $-0.500$ & $0.866$  & $0.000$  & Inferiore (Piano Frontale) \\
-		aVR & $-150^\circ$& $0^\circ$   & $-0.866$ & $-0.500$ & $0.000$  & Cavità destra (Piano Frontale) \\
-		aVL & $-30^\circ$ & $0^\circ$   & $0.866$  & $-0.500$ & $0.000$  & Laterale alta (Piano Frontale) \\
-		aVF & $+90^\circ$  & $0^\circ$   & $0.000$  & $1.000$  & $0.000$  & Inferiore (Piano Frontale) \\
+		I   & $0^\circ$   & $0^\circ$   & $1.000$  & $0.000$  & $0.000$ \\
+		II  & $+60^\circ$  & $0^\circ$   & $0.500$  & $0.866$  & $0.000$ \\
+		III & $+120^\circ$ & $0^\circ$   & $-0.500$ & $0.866$  & $0.000$ \\
+		aVR & $-150^\circ$ & $0^\circ$   & $-0.866$ & $-0.500$ & $0.000$ \\
+		aVL & $-30^\circ$  & $0^\circ$   & $0.866$  & $-0.500$ & $0.000$ \\
+		aVF & $+90^\circ$  & $0^\circ$   & $0.000$  & $1.000$  & $0.000$ \\
 		\midrule
-		V1  & $+110^\circ$& $+10^\circ$ & $-0.342$ & $0.174$  & $0.923$  & Settale ($4^\circ$ spazio int. dx) \\
-		V2  & $+100^\circ$& $+10^\circ$ & $-0.174$ & $0.174$  & $0.969$  & Settale ($4^\circ$ spazio int. sx) \\
-		V3  & $+80^\circ$ & $+5^\circ$  & $0.174$  & $0.087$  & $0.981$  & Anteriore (Intermedio V2-V4) \\
-		V4  & $+60^\circ$ & $0^\circ$   & $0.500$  & $0.000$  & $0.866$  & Anteriore ($5^\circ$ sp. emiclaveare) \\
-		V5  & $+30^\circ$ & $-5^\circ$  & $0.866$  & $-0.087$ & $0.492$  & Laterale bassa (Ascellare ant.) \\
-		V6  & $0^\circ$   & $-10^\circ$ & $0.985$  & $-0.174$ & $0.000$  & Laterale bassa (Ascellare media) \\
+		V1  & $+110^\circ$ & $+10^\circ$ & $-0.342$ & $0.174$  & $0.923$ \\
+		V2  & $+100^\circ$ & $+10^\circ$ & $-0.174$ & $0.174$  & $0.969$ \\
+		V3  & $+80^\circ$  & $+5^\circ$  & $0.174$  & $0.087$  & $0.981$ \\
+		V4  & $+60^\circ$  & $0^\circ$   & $0.500$  & $0.000$  & $0.866$ \\
+		V5  & $+30^\circ$  & $-5^\circ$  & $0.866$  & $-0.087$ & $0.492$ \\
+		V6  & $0^\circ$    & $-10^\circ$ & $0.985$  & $-0.174$ & $0.000$ \\
 		\bottomrule
 	\end{tabular}
 \end{table}
@@ -405,14 +408,14 @@ Come mostrato in Tabella~\ref{tab:lead_vectors_3d}, muovendosi da V1 a V6 la com
 \subsection{Costruzione del Grafo Signed}
 \label{sec:signed_graph}
 
-La correlazione teorica attesa tra due derivazioni $i$ e $j$ è direttamente proporzionale all'allineamento angolare dei rispettivi vettori di osservazione. La matrice di similitudine $S\in\mathbb{R}^{12\times12}$ è calcolata tramite \textit{cosine similarity}; poiché i vettori $\vec{u}_i$ sono normalizzati a norma unitaria, essa si riduce al prodotto scalare tridimensionale:
+La correlazione teorica attesa tra due derivazioni $i$ e $j$ è direttamente proporzionale all'allineamento dei rispettivi vettori di osservazione. La matrice di similitudine $S\in\mathbb{R}^{12\times12}$ è calcolata tramite \textit{cosine similarity}. poiché i vettori $\vec{u}_i$ sono normalizzati a norma unitaria, essa si riduce al prodotto scalare tridimensionale:
 \begin{equation}
 	S_{ij} = \vec{u}_i^T \vec{u}_j = x_i x_j + y_i y_j + z_i z_j \in [-1, 1]
 \end{equation}
 
-A differenza di un semplice grafo non negativo ottenuto sogliando a zero i valori negativi di $S$, in questa architettura si è scelto di \textbf{preservare l'informazione contenuta nelle correlazioni negative}. Coppie di derivazioni con vettori di osservazione quasi antiparalleli (ad esempio I e aVR, con $S_{ij}\approx-0.87$) osservano infatti la stessa attività elettrica con polarità invertita: questa relazione di \textbf{discordanza} è essa stessa informativa, in particolare per il task di rilevazione del malposizionamento degli elettrodi, e non va scartata sogliando semplicemente a zero.
+In questa architettura si è scelto di preservare l'informazione contenuta nelle correlazioni negative, dato che, coppie di derivazioni con vettori di osservazione quasi antiparalleli (ad esempio I e aVR, con $S_{ij}\approx-0.87$), osservano la stessa attività elettrica con polarità invertita, questa relazione di \textbf{discordanza} è informativa tanto quanto una relazione diretta, in particolar modo per il task di rilevazione del malposizionamento degli elettrodi.
 
-Il layer \texttt{GCNConv} di Kipf e Welling, tuttavia, normalizza i pesi degli archi per il grado dei nodi ($\tilde D^{-1/2}\tilde A\tilde D^{-1/2}$), normalizzazione che richiede pesi non negativi. Per non perdere l'informazione delle correlazioni negative pur rispettando questo vincolo, si è adottato un approccio a \textbf{grafo firmato (signed graph)}, ispirato al lavoro di Derr et al.\ (\textit{Signed Graph Convolutional Networks}, ICDM 2018): anziché un unico grafo, si costruiscono \textbf{due sottografi} distinti sulle medesime 12 derivazioni, entrambi a pesi non negativi:
+Il layer \texttt{GCNConv} di Kipf e Welling \cite{kipfwelling2017}, tuttavia, normalizza i pesi degli archi per il grado dei nodi ($\tilde D^{-1/2}\tilde A\tilde D^{-1/2}$), che richiede pesi non negativi. Per non perdere l'informazione delle correlazioni negative pur rispettando questo vincolo, si è adottato un approccio tramite \emph{signed graph}, adeguando il lavoro di Derr et al.\ (\textit{Signed Graph Convolutional Networks}, ICDM 2018) \cite{derr2018signed}. In pratica, invece di un unico grafo, si costruiscono \textbf{due sottografi} distinti sulle 12 derivazioni, entrambi a pesi non negativi:
 \begin{equation}
 	A^{+}_{ij} =
 	\begin{cases}
@@ -426,46 +429,90 @@ Il layer \texttt{GCNConv} di Kipf e Welling, tuttavia, normalizza i pesi degli a
 		0 & \text{altrimenti}
 	\end{cases}
 \end{equation}
-dove $\varepsilon > 0$ è una soglia di tolleranza numerica sotto la quale due derivazioni sono considerate geometricamente ortogonali (nessuna relazione lineare attesa, quindi nessun arco in nessuno dei due sottografi). Rispetto a una soglia $\varepsilon\to0$, un valore di $\varepsilon$ più alto produce un grafo più sparso, scelta motivata dalla necessità di regolarizzare il modello data la dimensione contenuta della rete e del numero di nodi (12). Poiché $S_{ii}=1\,\,\forall i$ per costruzione, il sottografo positivo $A^+$ include automaticamente i \textbf{self-loop} di tutti i nodi, mentre il sottografo negativo $A^-$ non ne contiene mai.
+dove $\varepsilon > 0$ è una soglia di tolleranza sotto la quale due derivazioni sono considerate geometricamente non correlate (nessun arco tra le derivazioni). Un valore di $\varepsilon$ più alto produce un grafo più sparso, necessario al fine di regolarizzare il modello permettendo l'apprendimento,
+che data la dimensione contenuta della rete e del numero di nodi, rischiava di essere compromesso. Poiché $S_{ii}=1\,\,\forall i$ per costruzione, è stato scelto di includere i \emph{self-loop} solamente nel grafo $A^+$ e non in $A^-$.
 
 \subsection{Message Passing Signed}
 \label{sec:signed_message_passing}
 
-Sui due sottografi $A^+$ e $A^-$ operano due layer \texttt{GCNConv} indipendenti (senza aggiunta automatica di self-loop, poiché già presenti in $A^+$ e assenti per costruzione in $A^-$). Dato lo stato dei nodi $H^{(\ell-1)}$ al layer $\ell-1$ (con $H^{(0)}$ pari alle feature prodotte dalla CNN backbone), il blocco di message passing signed calcola:
+Sui due sottografi $A^+$ e $A^-$ operano due layer \texttt{GCNConv} \cite{kipfwelling2017} indipendenti (senza aggiunta automatica di self-loop, poiché già presenti in $A^+$ e assenti in $A^-$). Dato lo stato dei nodi $H^{(\ell-1)}$ al layer $\ell-1$ (con $H^{(0)}$ pari alle feature prodotte dalla CNN backbone), il blocco di message passing signed calcola:
 \begin{equation}
 	H^{+(\ell)} = \text{GCNConv}^+_\ell\big(H^{(\ell-1)},\, A^+\big)
 	\qquad
 	H^{-(\ell)} = \text{GCNConv}^-_\ell\big(-H^{(\ell-1)},\, A^-\big)
 \end{equation}
-Nel ramo negativo le feature in ingresso vengono \textbf{negate} ($-H^{(\ell-1)}$) prima della convoluzione, in modo da rappresentare esplicitamente l'inversione di polarità attesa fisiologicamente tra derivazioni discordi. I due contributi vengono quindi \textbf{concatenati} (anziché sommati algebricamente, per evitare che valori di grande modulo in un ramo possano cancellare i contributi dell'altro) e proiettati alla dimensione desiderata tramite una trasformazione lineare, seguita da una \textit{Layer Normalization} che stabilizza la rappresentazione anche per i nodi con grado nullo nel sottografo negativo:
+Nel ramo negativo le feature in ingresso vengono \textbf{negate} ($-H^{(\ell-1)}$) prima della convoluzione, in modo da rappresentare esplicitamente l'inversione di polarità attesa fisiologicamente tra derivazioni discordi, coerentemente con la formulazione originale del signed message passing \cite{derr2018signed}. I due contributi vengono quindi \textbf{concatenati} (anziché sommati algebricamente, per evitare che valori di grande modulo in un ramo possano cancellare i contributi dell'altro) e proiettati alla dimensione desiderata tramite una trasformazione lineare, seguita da una \textit{Layer Normalization} \cite{ba2016layernorm} che stabilizza la rappresentazione anche per i nodi con grado nullo nel sottografo negativo:
 \begin{equation}
 	H^{(\ell)} = \text{LayerNorm}\Big(W^{(\ell)}\,\big[H^{+(\ell)} \,\|\, H^{-(\ell)}\big] + b^{(\ell)}\Big)
 \end{equation}
-dove $\|$ indica la concatenazione. L'output di ciascun blocco viene poi passato attraverso un'attivazione \textbf{LeakyReLU}, preferita alla ReLU standard per evitare di azzerare completamente i contributi provenienti dal ramo negativo.
+dove $\|$ indica la concatenazione. L'output di ciascun blocco viene poi passato attraverso un'attivazione \emph{LeakyReLU} \cite{maas2013rectifier}, scelta per evitare di annullare i contributi negativi dei rami.
 
-\subsection{Variante con Attenzione}
-\label{sec:gat_variant}
+\subsection{Calcolo del Gradiente nella GCN}
+\label{sec:gcn_gradient}
 
-In alternativa al message passing signed appena descritto, è stata implementata una variante basata su \textbf{GATv2Conv}, che sostituisce i pesi geometrici fissi con pesi di attenzione appresi. Poiché GATv2Conv non normalizza per il grado dei nodi, questa variante non richiede la separazione in due sottografi: può operare direttamente sul \textbf{grafo completo} (unione degli archi di $A^+$ e $A^-$), passando il peso firmato originale $S_{ij}\in[-1,1]$ come \textit{edge feature} scalare ($\texttt{edge\_dim}=1$):
-\begin{equation}
-	H^{(\ell)} = \text{GATv2Conv}_\ell\big(H^{(\ell-1)},\, \mathcal{E}^{+}\cup\mathcal{E}^{-},\, S\big)
-\end{equation}
-lasciando che il meccanismo di attenzione, con $4$ teste concatenate e poi mediate (\texttt{concat=False}), impari autonomamente come pesare relazioni concordi e discordi tra derivazioni, invece di fissarle a priori tramite l'affinità anatomica.
+Come nel caso della CNN (Sezione~\ref{sec:cnn}), anche nella GCN il calcolo del gradiente segue lo stesso principio generale della backpropagation basato sulla chain rule, ma la natura dell'operazione di aggregazione cambia ulteriormente: la convoluzione spaziale è sostituita da un'\emph{aggregazione pesata sui vicini del grafo}, definita dalla topologia fissa $A^+$ e $A^-$(Sezione~\ref{sec:matrice_geometrica_3d}).
+
+\subsubsection{Struttura delle variabili}
+
+Ricordando la formulazione di Kipf e Welling \cite{kipfwelling2017}, ciascun layer \texttt{GCNConv}$_\ell$ operante su un sottografo $A^{\pm}$ calcola:
+\[
+\hat{A} = \tilde D^{-1/2}\tilde A\tilde D^{-1/2}\in\mathbb{R}^{12\times12}
+\]
+dove $\tilde A=A^{\pm}$ (con i self-loop già inclusi in $A^+$, secondo quanto definito nella Sezione~\ref{sec:signed_graph}) e $\tilde D$ è la matrice diagonale dei gradi. Poiché $\hat{A}$ dipende esclusivamente dalla geometria fissa delle derivazioni, si tratta di un operatore \textbf{costante e non addestrabile}. La preattivazione del layer, per i nodi al layer $H^{(\ell-1)}\in\mathbb{R}^{12\times d_{\ell-1}}$, è quindi:
+\[
+A^{(\ell)}=\hat{A}\,H^{(\ell-1)}\,W^{(\ell)}\in\mathbb{R}^{12\times d_\ell}
+\]
+e l'output attivato $H^{(\ell)}=f\!\left(A^{(\ell)}\right)$, dove $f$ è la \emph{LeakyReLU} introdotta nella Sezione~\ref{sec:signed_message_passing}.
+
+\subsubsection{Segnale di errore nel layer di message passing}
+
+Analogamente ai casi MLP e CNN, definiamo il segnale di errore per il nodo $i$ al layer $\ell$ come:
+\[
+\delta_i^{(\ell)}=\frac{\partial L}{\partial A_i^{(\ell)}}
+\]
+Poiché $A^{(\ell)}=\hat{A}\,H^{(\ell-1)}\,W^{(\ell)}$, ogni riga $H_i^{(\ell-1)}$ contribuisce alla preattivazione di \textbf{tutti} i nodi $j$ tali che $\hat{A}_{ji}\neq 0$, cioè di tutti i vicini di $i$ nel grafo (analogamente a come, in una CNN, ogni pixel contribuisce alla preattivazione di tutte le posizioni del kernel che lo contiene). Applicando la chain rule, la matrice dei delta del layer $\ell-1$ si ottiene come:
+\[
+\Delta^{(\ell-1)} = f'\!\left(A^{(\ell-1)}\right)\odot\left(\hat{A}^T\,\Delta^{(\ell)}\,W^{(\ell)T}\right)
+\]
+dove $\odot$ indica il prodotto elemento per elemento. Essendo $\hat{A}$ simmetrica per costruzione, si ha $\hat{A}^T=\hat{A}$, per cui:
+\[
+\Delta^{(\ell-1)} = f'\!\left(A^{(\ell-1)}\right)\odot\left(\hat{A}\,\Delta^{(\ell)}\,W^{(\ell)T}\right)
+\]
+Questa espressione gioca, nella GCN, lo stesso ruolo giocato dalla convoluzione con il kernel ruotato di $180°$ nella CNN (Sezione~\ref{sec:cnn}), dato che, l'operatore $\hat A$, essendo simmetrico, ridistribuisce il segnale di errore ai vicini di ciascun nodo esattamente nella stessa direzione in cui l'informazione era stata originariamente aggregata in avanti.
+
+\subsubsection{Gradiente rispetto ai pesi e al bias}
+
+Dato che $A^{(\ell)}=\hat{A}\,H^{(\ell-1)}\,W^{(\ell)}$, il gradiente della loss rispetto alla matrice dei pesi $W^{(\ell)}$ si ottiene applicando la chain rule al prodotto matriciale:
+\[
+\nabla_{W^{(\ell)}}L = \left(\hat{A}\,H^{(\ell-1)}\right)^{T}\Delta^{(\ell)}
+\]
+Il gradiente rispetto al bias $b^{(\ell)}$, introdotto nella proiezione lineare della Sezione~\ref{sec:signed_message_passing}, si calcola invece come somma dei delta su tutti i nodi, esattamente come nel caso di MLP e CNN:
+\[
+\frac{\partial L}{\partial b^{(\ell)}} = \sum_{i=1}^{12}\delta_i^{(\ell)}
+\]
+Poiché l'output del blocco di message passing è la concatenazione $[H^{+(\ell)}\,\|\,H^{-(\ell)}]$ dei due rami, il segnale di errore $\Delta^{(\ell)}$ proveniente dalla Layer Normalization viene innanzitutto suddiviso per colonne nei due contributi $\Delta^{+(\ell)}$ e $\Delta^{-(\ell)}$, che vengono poi retropropagati separatamente attraverso i rispettivi layer \texttt{GCNConv}$^+$ e \texttt{GCNConv}$^-$ secondo le formule precedenti. Per il ramo negativo, essendo l'input al forward pass $-H^{(\ell-1)}$ anziché $H^{(\ell-1)}$, la chain rule introduce un fattore $-1$ nella propagazione del delta verso $H^{(\ell-1)}$.
+
+\subsubsection{Gradiente rispetto ai pesi della backbone}
+
+I pesi della CNN backbone (Sezione~\ref{sec:lead_cnn_encoder}) sono \textbf{condivisi tra le 12 derivazioni}: lo stesso \textit{LeadCNNEncoder} viene applicato singolarmente a ciascuna delle 12 sequenze in ingresso prima della costruzione del grafo. Questo è concettualmente identico al \textit{weight sharing} spaziale già visto per la CNN (Sezione~\ref{sec:cnn}), ma applicato lungo la dimensione delle derivazioni anziché lungo lo spazio o il tempo: lo stesso peso $K^{\text{backbone}}$ contribuisce al calcolo della feature nodale di tutte e 12 le derivazioni, quindi il suo gradiente totale è la somma dei contributi calcolati separatamente per ciascuna derivazione $v$:
+\[
+\nabla_{K^{\text{backbone}}}L=\sum_{v=1}^{12}\nabla_{K^{\text{backbone}}}L^{(v)}
+\]
+dove $\nabla_{K^{\text{backbone}}}L^{(v)}$ è il gradiente calcolato tramite le formule di backpropagation della CNN 1D (Sezione~\ref{sec:cnn}) a partire dal delta ricevuto dal nodo $v$ del grafo, cioè dalla prima riga della matrice $\Delta^{(0)}$ retropropagata dal primo layer di message passing fino all'uscita della backbone.
+
+\subsubsection{Aggiornamento dei pesi}
+
+Una volta calcolati tutti i gradienti, i pesi della GCN (matrici $W^{(\ell)}$ e bias $b^{(\ell)}$ dei layer di message passing, kernel e bias della backbone condivisa, pesi del classificatore finale) vengono aggiornati con la medesima regola di discesa del gradiente utilizzata per MLP e CNN:
+\[
+W^{(\ell)}=W^{(\ell)}-\eta\,\nabla_{W^{(\ell)}}L \qquad K^{\text{backbone}}=K^{\text{backbone}}-\eta\,\nabla_{K^{\text{backbone}}}L
+\]
+La struttura generale dell'algoritmo di ottimizzazione rimane quindi invariata rispetto a MLP e CNN: ciò che cambia è la natura dell'operatore che modella la dipendenza tra le unità che danno informazione e le altre da cui ricevono informazione: somme pesate scalari nell'MLP, pesi condivisi e convoluzioni nella CNN, e infine un operatore di aggregazione $\hat A$ fissato dalla geometria delle derivazioni nella GCN. Il principio della chain rule e la discesa del gradiente restano invece gli stessi in tutte e tre le architetture, a conferma di come queste rappresentino, più che tre metodi distinti, tre diversi modi di vedere e risolvere un problema.
 
 \subsection{Pooling Globale e Classificazione}
 \label{sec:global_pooling}
 
-Dopo $L$ layer di message passing (signed o basati su attenzione), le rappresentazioni nodali $H^{(L)}\in\mathbb{R}^{12\times d_{\text{hidden}}}$ vengono aggregate in un unico \textbf{embedding di grafo}, rappresentativo dell'intero ECG a 12 derivazioni, tramite la concatenazione di \textit{global mean pooling} e \textit{global max pooling}:
+Dopo $L$ layer di message passing, le rappresentazioni nodali $H^{(L)}\in\mathbb{R}^{12\times d_{\text{hidden}}}$ vengono aggregate in un unico \textbf{embedding di grafo}, rappresentativo dell'intero ECG a 12 derivazioni, tramite la concatenazione di \textit{global mean pooling} e \textit{global max pooling}:
 \begin{equation}
 	e_{\mathcal{G}} = \big[\,\text{mean}_i\big(H^{(L)}_i\big) \,\|\, \max_i\big(H^{(L)}_i\big)\,\big] \in \mathbb{R}^{2\,d_{\text{hidden}}}
 \end{equation}
-L'uso combinato di media e massimo fornisce una rappresentazione più robusta rispetto all'uso della sola media, catturando sia il comportamento aggregato dell'insieme delle derivazioni sia le attivazioni più salienti su singoli nodi. L'embedding $e_{\mathcal{G}}$ viene infine passato a un classificatore finale, che può essere un semplice layer lineare oppure un piccolo MLP (lineare $\to$ ReLU $\to$ Dropout $\to$ lineare) a seconda della complessità richiesta dal task, per produrre i \textit{logits} sulle $C$ classi (normale + tipologie di inversione considerate).
-
-\subsection{Adeguatezza del Metodo per la Rilevazione del Malposizionamento}
-
-L'impiego di un grafo geometrico signed, anziché di una matrice di adiacenza appresa o di un grafo completamente connesso, è particolarmente idoneo a identificare l'inversione degli elettrodi per le seguenti ragioni:
-\begin{enumerate}
-	\item \textbf{Violazione della Coerenza Spaziale:} un'inversione di elettrodi (es. scambio dei cavi del braccio destro e sinistro, RA-LA) altera drasticamente la forma d'onda osservata sulle derivazioni coinvolte. Operando il \textit{message passing} su archi pesati secondo la geometria corretta, la rete rileva immediatamente un'incongruenza nella distribuzione delle feature rispetto alla topologia attesa del grafo.
-	\item \textbf{Preservazione dell'informazione di discordanza:} rappresentando esplicitamente, tramite il sottografo negativo, le relazioni di antiparallelismo attese tra determinate coppie di derivazioni (es. I e aVR), il modello dispone di un segnale diretto per riconoscere quando tale antiparallelismo viene violato o, viceversa, quando compare in modo anomalo tra derivazioni che dovrebbero essere concordi.
-	\item \textbf{Robustezza e Prevenzione dell'Overfitting:} rispetto a un grafo completamente connesso o con adiacenza appresa, l'adozione di pesi geometrici fissi (eventualmente sparsificati tramite la soglia $\varepsilon$) evita che il modello apprenda relazioni non utili o legate al rumore del dataset.
-\end{enumerate}
+Utilizzare in coppia media e massimo fornisce una rappresentazione più robusta rispetto all'uso della sola media, catturando sia il comportamento aggregato dell'insieme delle derivazioni sia le attivazioni più "forti" su singoli nodi. L'embedding $e_{\mathcal{G}}$ viene infine passato a un classificatore finale, che può essere un semplice layer lineare oppure un piccolo MLP (lineare $\to$ ReLU $\to$ Dropout \cite{srivastava2014dropout} $\to$ lineare) a seconda della complessità richiesta dal task, per produrre i \textit{logits} sulle $C$ classi (normale + tipologie di inversione considerate). Il gradiente attraverso questo strato finale si calcola con le medesime formule già viste per l'MLP (Sezione~\ref{sec:mlp}), a partire dal delta del layer di uscita fino ai delta dei nodi $H^{(L)}_i$, retropropagati poi attraverso gli operatori di mean/max pooling (in modo analogo al max/average pooling spaziale della CNN, Sezione~\ref{sec:cnn}) e infine attraverso i layer di message passing secondo quanto derivato nella Sezione~\ref{sec:gcn_gradient}.

@@ -1,0 +1,567 @@
+%======================================================
+% Bibliografia tesi
+%======================================================
+
+--------------
+% Capitolo 2: elettrofisiologia e derivazioni standard --------------
+
+@article{einthoven1912,
+  author  = {Einthoven, Willem},
+  title   = {The different forms of the human electrocardiogram and their signification},
+  journal = {The Lancet},
+  year    = {1912},
+  volume  = {179},
+  number  = {4622},
+  pages   = {853--861},
+  doi     = {10.1016/S0140-6736(00)50560-1}
+}
+
+@article{goldberger1942,
+  author  = {Goldberger, Emanuel},
+  title   = {A simple, indifferent, electrocardiographic electrode of zero potential and a technique of obtaining augmented, unipolar, extremity leads},
+  journal = {American Heart Journal},
+  year    = {1942},
+  volume  = {23},
+  number  = {4},
+  pages   = {483--492},
+  doi     = {10.1016/S0002-8703(42)90293-X}
+}
+
+@book{malmivuo1995bioelectromagnetism,
+  author    = {Malmivuo, Jaakko and Plonsey, Robert},
+  title     = {Bioelectromagnetism: Principles and Applications of Bioelectric and Biomagnetic Fields},
+  publisher = {Oxford University Press},
+  address   = {New York},
+  year      = {1995}
+}
+
+
+% -----------
+% Capitolo 3: Stato dell'arte sul malposizionamento degli elettrodi ECG
+% -----------
+
+% --- Metodi classici: scambi periferici 
+
+@article{paul2023lead,
+	author  = {Paul, Amal and Jacob, John Roshan},
+	title   = {Electrocardiographic lead reversals},
+	journal = {Indian Pacing and Electrophysiology Journal},
+	year    = {2023},
+	volume  = {23},
+	number  = {6},
+	pages   = {205--213},
+	doi     = {10.1016/j.ipej.2023.09.005}
+}
+
+@article{ho2001pwave,
+	author  = {Ho, Kim K. and Ho, Simon K.},
+	title   = {Use of the sinus {P} wave in diagnosing electrocardiographic
+	limb lead misplacement not involving the right leg
+	(ground) lead},
+	journal = {Journal of Electrocardiology},
+	year    = {2001},
+	volume  = {34},
+	number  = {2},
+	pages   = {161--171},
+	doi     = {10.1054/jelc.2001.23927}
+}
+
+@article{kors2001accurate,
+	author  = {Kors, Jan A. and van Herpen, Gerard},
+	title   = {Accurate automatic detection of electrode interchange
+	in the electrocardiogram},
+	journal = {American Journal of Cardiology},
+	year    = {2001},
+	volume  = {88},
+	number  = {4},
+	pages   = {396--399},
+	doi     = {10.1016/S0002-9149(01)01686-1}
+}
+
+@article{kors2000correlation,
+	author  = {Kors, Jan A. and van Herpen, Gerard},
+	title   = {A novel method to detect electrocardiographic electrode
+	interchanges},
+	journal = {Journal of Electrocardiology},
+	year    = {2000},
+	volume  = {33},
+	pages   = {209--210},
+	doi     = {10.1054/jelc.2000.20352}
+}
+
+% --- Metodi classici: correlazione periferiche/precordiali
+
+@article{jekova2016interlead,
+	author  = {Jekova, Irena and Krasteva, Vessela and Leber, Remo and
+	Schmid, Ramun and Twerenbold, Raphael and M{\"u}ller,
+	Christian and Reichlin, Tobias and Ab{\"a}cherli, Roger},
+	title   = {Inter-lead correlation analysis for automated detection
+	of cable reversals in 12/16-lead {ECG}},
+	journal = {Computer Methods and Programs in Biomedicine},
+	year    = {2016},
+	volume  = {134},
+	pages   = {31--41},
+	doi     = {10.1016/j.cmpb.2016.05.019}
+}
+
+@inproceedings{jekova2015precordial,
+	author    = {Jekova, Irena and Krasteva, Vessela and Leber, Remo and
+	Schmid, Ramun and Ab{\"a}cherli, Roger},
+	title     = {Detection of electrode interchange in right precordial
+	and posterior {ECG} leads},
+	booktitle = {2015 Computing in Cardiology Conference (CinC)},
+	year      = {2015},
+	pages     = {1149--1152},
+	publisher = {IEEE}
+}
+
+@article{batchvarov2007incorrect,
+	author  = {Batchvarov, Velislav N. and Malik, Marek and Camm, A. John},
+	title   = {Incorrect electrode cable connection during
+	electrocardiographic recording},
+	journal = {Europace},
+	year    = {2007},
+	volume  = {9},
+	number  = {11},
+	pages   = {1081--1090},
+	doi     = {10.1093/europace/eum198}
+}
+
+% --- Limiti dei metodi classici: reti neurali "storiche"
+
+@article{heden1995ann,
+	author  = {Hed{\'e}n, Bj{\"o}rn and Ohlsson, Mattias and Edenbrandt,
+	Lars and Rittner, Ralf and Pahlm, Olle and Peterson, Carsten},
+	title   = {Artificial neural networks for recognition of
+	electrocardiographic lead reversal},
+	journal = {American Journal of Cardiology},
+	year    = {1995},
+	volume  = {75},
+	number  = {14},
+	pages   = {929--933},
+	doi     = {10.1016/s0002-9149(99)80689-4}
+}
+
+% --- Machine learning tradizionale su feature manuali 
+
+@article{rjoob2020review,
+	author  = {Rjoob, Khaled and Bond, Raymond and Finlay, Dewar and
+	McGilligan, Victoria and Leslie, Stephen J. and Rababah,
+	Ali and Guldenring, Daniel and Iftikhar, Aleeha and
+	Knoery, Charles and McShane, Anne and Peace, Aaron},
+	title   = {Machine learning techniques for detecting electrode
+	misplacement and interchanges when recording {ECGs}:
+	A systematic review and meta-analysis},
+	journal = {Journal of Electrocardiology},
+	year    = {2020},
+	volume  = {62},
+	pages   = {116--123},
+	doi     = {10.1016/j.jelectrocard.2020.08.013}
+}
+
+@article{rjoob2019datadriven,
+	author  = {Rjoob, Khaled and Bond, Raymond and Finlay, Dewar and
+	McGilligan, Victoria and Leslie, Stephen J. and Iftikhar,
+	Aleeha and Guldenring, Daniel and Rababah, Ali and
+	Knoery, Charles and McShane, Anne and others},
+	title   = {Data driven feature selection and machine learning to
+	detect misplaced {V1} and {V2} chest electrodes when
+	recording the 12-lead electrocardiogram},
+	journal = {Journal of Electrocardiology},
+	year    = {2019},
+	volume  = {57},
+	pages   = {39--43},
+	doi     = {10.1016/j.jelectrocard.2019.08.017}
+}
+
+@article{han2014svm,
+	author  = {Han, Chao and Gregg, Richard E. and Feild, David Q. and
+	Babaeizadeh, Saeed},
+	title   = {Automatic detection of {ECG} cable interchange by
+	analyzing both morphology and interlead relations},
+	journal = {Journal of Electrocardiology},
+	year    = {2014},
+	volume  = {47},
+	number  = {6},
+	pages   = {781--787},
+	doi     = {10.1016/j.jelectrocard.2014.08.006}
+}
+
+% --- Deep learning
+
+@article{rjoob2021jmir,
+	author  = {Rjoob, Khaled and Bond, Raymond and Finlay, Dewar and
+	McGilligan, Victoria and Leslie, Stephen J. and Rababah,
+	Ali and Iftikhar, Aleeha and Guldenring, Daniel and
+	Knoery, Charles and McShane, Anne and Peace, Aaron},
+	title   = {Reliable Deep Learning-Based Detection of Misplaced
+	Chest Electrodes During Electrocardiogram Recording:
+	Algorithm Development and Validation},
+	journal = {JMIR Medical Informatics},
+	year    = {2021},
+	volume  = {9},
+	number  = {4},
+	pages   = {e25347},
+	doi     = {10.2196/25347}
+}
+
+@article{huang2024lightweight,
+	author  = {Huang, Yangcheng and Wang, Mingjie and Li, Yi-Gang and
+	Cai, Wenjie},
+	title   = {A lightweight deep learning approach for detecting
+	electrocardiographic lead misplacement},
+	journal = {Physiological Measurement},
+	year    = {2024},
+	volume  = {45},
+	number  = {5},
+	pages   = {055006},
+	doi     = {10.1088/1361-6579/ad43ae}
+}
+
+@inproceedings{alves2025telecardiology,
+	author    = {Alves, Isac A. and Paix{\~a}o, Gabriela M. M. and Gomes,
+	Paulo R. and Bessa, Jessyca A. and Ribeiro, Ant{\^o}nio
+	Luiz P. and Moraes, Jermana L.},
+	title     = {Deep Learning Models for Real-World Detection of
+	Electrode Interchange in 12-Lead {ECGs}: A
+	Telecardiology Validation},
+	booktitle = {Proceedings of the Brazilian Congress on Artificial
+	Intelligence (CBIC)},
+	year      = {2025}
+}
+
+% --- Capitolo 4: basi matematiche ed elaborazione del segnale ----------
+
+% --- Campionamento e teorema di Nyquist-Shannon ----------------------
+
+@article{nyquist1928,
+	author  = {Nyquist, Harry},
+	title   = {Certain topics in telegraph transmission theory},
+	journal = {Transactions of the American Institute of Electrical
+	Engineers},
+	year    = {1928},
+	volume  = {47},
+	number  = {2},
+	pages   = {617--644},
+	doi     = {10.1109/T-AIEE.1928.5055024}
+}
+
+@article{shannon1949,
+	author  = {Shannon, Claude E.},
+	title   = {Communication in the presence of noise},
+	journal = {Proceedings of the IRE},
+	year    = {1949},
+	volume  = {37},
+	number  = {1},
+	pages   = {10--21},
+	doi     = {10.1109/JRPROC.1949.232969}
+}
+
+% --- Testi di riferimento generali per trasformate e sistemi LTI -----
+% (Laplace, Fourier, Fourier discreta/FFT, trasformata Z, filtri lineari, funzione di trasferimento: materiale standard trattato in questi due testi di riferimento)
+% -------
+@book{oppenheim1997dsp,
+	author    = {Oppenheim, Alan V. and Schafer, Ronald W.},
+	title     = {Discrete-Time Signal Processing},
+	edition   = {2nd},
+	publisher = {Prentice Hall},
+	year      = {1999}
+}
+
+@book{oppenheim1996signals,
+	author    = {Oppenheim, Alan V. and Willsky, Alan S. and Nawab,
+	S. Hamid},
+	title     = {Signals and Systems},
+	edition   = {2nd},
+	publisher = {Prentice Hall},
+	year      = {1996}
+}
+
+% --- Spline e B-spline nell'elaborazione dei segnali ------------------
+
+@article{unser1999splines,
+	author  = {Unser, Michael},
+	title   = {Splines: A perfect fit for signal and image processing},
+	journal = {IEEE Signal Processing Magazine},
+	year    = {1999},
+	volume  = {16},
+	number  = {6},
+	pages   = {22--38},
+	doi     = {10.1109/79.799930}
+}
+
+% --- Progettazione di filtri ------------------------------------------
+
+@article{butterworth1930,
+	author  = {Butterworth, Stephen},
+	title   = {On the theory of filter amplifiers},
+	journal = {Experimental Wireless and the Wireless Engineer},
+	year    = {1930},
+	volume  = {7},
+	pages   = {536--541}
+}
+
+@article{parks1972chebyshev,
+	author  = {Parks, Thomas W. and McClellan, James H.},
+	title   = {Chebyshev approximation for nonrecursive digital filters
+	with linear phase},
+	journal = {IEEE Transactions on Circuit Theory},
+	year    = {1972},
+	volume  = {19},
+	number  = {2},
+	pages   = {189--194},
+	doi     = {10.1109/TCT.1972.1083419}
+}
+
+% --- Standardizzazione del segnale ECG (banda, campionamento, ADC) ---
+
+@article{bailey1990aha,
+	author  = {Bailey, J. J. and Berson, A. S. and Garson, A. and
+	Horan, L. G. and Macfarlane, P. W. and Mortara, D. W.
+	and Zywietz, C.},
+	title   = {Recommendations for standardization and specifications
+	in automated electrocardiography: bandwidth and digital
+	signal processing},
+	journal = {Circulation},
+	year    = {1990},
+	volume  = {81},
+	number  = {2},
+	pages   = {730--739},
+	doi     = {10.1161/01.CIR.81.2.730}
+}
+
+@article{kligfield2007aha,
+	author  = {Kligfield, Paul and Gettes, Leonard S. and Bailey,
+	James J. and Childers, Rory and Deal, Barbara J. and
+	Hancock, E. William and van Herpen, Gerard and Kors,
+	Jan A. and Macfarlane, Peter and Mirvis, David M. and
+	others},
+	title   = {Recommendations for the standardization and
+	interpretation of the electrocardiogram: Part {I}: The
+	electrocardiogram and its technology},
+	journal = {Circulation},
+	year    = {2007},
+	volume  = {115},
+	number  = {10},
+	pages   = {1306--1324},
+	doi     = {10.1161/CIRCULATIONAHA.106.180200}
+}
+
+% --- Rumore ECG e tecniche di preprocessing ---------------------------
+
+@book{sornmo2005bioelectrical,
+	author    = {S{\"o}rnmo, Leif and Laguna, Pablo},
+	title     = {Bioelectrical Signal Processing in Cardiac and
+	Neurological Applications},
+	publisher = {Academic Press},
+	year      = {2005}
+}
+
+
+% --- Capitolo 5: dataset e simulazione degli scambi ---------------------
+
+% --- Database di partenza ---------------------------------------------
+
+@article{wagner2020ptbxl,
+	author  = {Wagner, Patrick and Strodthoff, Nils and Bousseljot,
+	Ralf-Dieter and Kreiseler, Dieter and Lunze, Fatima I.
+	and Samek, Wojciech and Schaeffter, Tobias},
+	title   = {{PTB-XL}, a large publicly available electrocardiography
+	dataset},
+	journal = {Scientific Data},
+	year    = {2020},
+	volume  = {7},
+	pages   = {154},
+	doi     = {10.1038/s41597-020-0495-6}
+}
+
+@article{alday2020georgia,
+	author  = {Perez Alday, Erick A. and Gu, Annie and Shah, Amit J.
+	and Robichaux, Chad and Wong, An-Kwok Ian and Liu,
+	Chengyu and Liu, Feifei and Bahrami Rad, Ali and Elola,
+	Andoni and Seyedi, Salman and Li, Qiao and Sharma,
+	Ashish and Clifford, Gari D. and Reyna, Matthew A.},
+	title   = {Classification of 12-lead {ECGs}: the {PhysioNet}/
+	Computing in Cardiology Challenge 2020},
+	journal = {Physiological Measurement},
+	year    = {2020},
+	volume  = {41},
+	number  = {12},
+	pages   = {124003},
+	doi     = {10.1088/1361-6579/abc960}
+}
+
+% --- Database utilizzato esclusivamente per il test -------------------
+% ("China/PhysioNet database", noto in letteratura come
+%  Chapman-Shaoxing-Ningbo, CSN)
+
+@article{zheng2020chapman,
+	author  = {Zheng, Jianwei and Zhang, Jianming and Danioko, Sidy and
+	Yao, Hai and Guo, Hangyuan and Rakovski, Cyril},
+	title   = {A 12-lead electrocardiogram database for arrhythmia
+	research covering more than 10,000 patients},
+	journal = {Scientific Data},
+	year    = {2020},
+	volume  = {7},
+	pages   = {48},
+	doi     = {10.1038/s41597-020-0386-x}
+}
+
+@misc{zheng2022ecgarrhythmia,
+	author       = {Zheng, Jianwei and Guo, Hangyuan and Chu, Huimin},
+	title        = {A large scale 12-lead electrocardiogram database
+	for arrhythmia study},
+	howpublished = {PhysioNet, version 1.0.0},
+	year         = {2022},
+	doi          = {10.13026/wgex-er52}
+}
+
+@article{goldberger2000physionet,
+	author  = {Goldberger, Ary L. and Amaral, Luis A. N. and Glass,
+	Leon and Hausdorff, Jeffrey M. and Ivanov, Plamen Ch.
+	and Mark, Roger G. and Mietus, Joseph E. and Moody,
+	George B. and Peng, Chung-Kang and Stanley, H. Eugene},
+	title   = {{PhysioBank}, {PhysioToolkit}, and {PhysioNet}:
+	components of a new research resource for complex
+	physiologic signals},
+	journal = {Circulation},
+	year    = {2000},
+	volume  = {101},
+	number  = {23},
+	pages   = {e215--e220},
+	doi     = {10.1161/01.CIR.101.23.e215}
+}
+
+% --- Rilevamento del picco R --------------------------------------------
+
+@article{pantompkins1985,
+	author  = {Pan, Jiapu and Tompkins, Willis J.},
+	title   = {A Real-Time {QRS} Detection Algorithm},
+	journal = {IEEE Transactions on Biomedical Engineering},
+	year    = {1985},
+	volume  = {BME-32},
+	number  = {3},
+	pages   = {230--236},
+	doi     = {10.1109/TBME.1985.325532}
+}
+
+
+
+% --- Capitolo 6: modello proposto CNN+GCN -------------------------------
+
+@article{lecun1998gradient,
+	author  = {LeCun, Yann and Bottou, L{\'e}on and Bengio, Yoshua and Haffner, Patrick},
+	title   = {Gradient-based learning applied to document recognition},
+	journal = {Proceedings of the IEEE},
+	year    = {1998},
+	volume  = {86},
+	number  = {11},
+	pages   = {2278--2324},
+	doi     = {10.1109/5.726791}
+}
+
+@article{rumelhart1986backprop,
+	author  = {Rumelhart, David E. and Hinton, Geoffrey E. and Williams, Ronald J.},
+	title   = {Learning representations by back-propagating errors},
+	journal = {Nature},
+	year    = {1986},
+	volume  = {323},
+	number  = {6088},
+	pages   = {533--536},
+	doi     = {10.1038/323533a0}
+}
+
+@inproceedings{kipfwelling2017,
+	author    = {Kipf, Thomas N. and Welling, Max},
+	title     = {Semi-Supervised Classification with Graph Convolutional Networks},
+	booktitle = {International Conference on Learning Representations (ICLR)},
+	year      = {2017},
+	eprint    = {1609.02907},
+	archiveprefix = {arXiv}
+}
+
+@inproceedings{derr2018signed,
+	author    = {Derr, Tyler and Ma, Yao and Tang, Jiliang},
+	title     = {Signed Graph Convolutional Networks},
+	booktitle = {IEEE International Conference on Data Mining (ICDM)},
+	year      = {2018},
+	pages     = {929--934},
+	doi       = {10.1109/ICDM.2018.00113}
+}
+
+@inproceedings{akiba2019optuna,
+	author    = {Akiba, Takuya and Sano, Shotaro and Yanase, Toshihiko and Ohta, Takeru and Koyama, Masanori},
+	title     = {Optuna: A Next-generation Hyperparameter Optimization Framework},
+	booktitle = {Proceedings of the 25th ACM SIGKDD International Conference on Knowledge Discovery \& Data Mining (KDD)},
+	year      = {2019},
+	pages     = {2623--2631},
+	doi       = {10.1145/3292500.3330701}
+}
+
+@inproceedings{ioffe2015batchnorm,
+	author    = {Ioffe, Sergey and Szegedy, Christian},
+	title     = {Batch Normalization: Accelerating Deep Network Training by Reducing Internal Covariate Shift},
+	booktitle = {Proceedings of the 32nd International Conference on Machine Learning (ICML)},
+	year      = {2015},
+	series    = {PMLR},
+	volume    = {37},
+	pages     = {448--456}
+}
+
+@inproceedings{maas2013rectifier,
+	author    = {Maas, Andrew L. and Hannun, Awni Y. and Ng, Andrew Y.},
+	title     = {Rectifier Nonlinearities Improve Neural Network Acoustic Models},
+	booktitle = {ICML Workshop on Deep Learning for Audio, Speech and Language Processing},
+	year      = {2013}
+}
+
+@misc{ba2016layernorm,
+	author       = {Ba, Jimmy Lei and Kiros, Jamie Ryan and Hinton, Geoffrey E.},
+	title        = {Layer Normalization},
+	year         = {2016},
+	eprint       = {1607.06450},
+	archiveprefix = {arXiv}
+}
+
+@article{srivastava2014dropout,
+	author  = {Srivastava, Nitish and Hinton, Geoffrey and Krizhevsky, Alex and Sutskever, Ilya and Salakhutdinov, Ruslan},
+	title   = {Dropout: A Simple Way to Prevent Neural Networks from Overfitting},
+	journal = {Journal of Machine Learning Research},
+	year    = {2014},
+	volume  = {15},
+	number  = {1},
+	pages   = {1929--1958}
+}
+
+@book{malmivuo1995bioelectromagnetism,
+	author    = {Malmivuo, Jaakko and Plonsey, Robert},
+	title     = {Bioelectromagnetism: Principles and Applications of Bioelectric and Biomagnetic Fields},
+	publisher = {Oxford University Press},
+	year      = {1995}
+}
+
+@book{goldberger2017ecg,
+	author    = {Goldberger, Ary L. and Goldberger, Zachary D. and Shvilkin, Alexei},
+	title     = {Goldberger's Clinical Electrocardiography: A Simplified Approach},
+	edition   = {9th},
+	publisher = {Elsevier},
+	year      = {2017}
+}
+
+@article{hannun2019cardiologist,
+	author  = {Hannun, Awni Y. and Rajpurkar, Pranav and Haghpanahi, Masoumeh and Tison, Geoffrey H. and Bourn, Codie and Turakhia, Mintu P. and Ng, Andrew Y.},
+	title   = {Cardiologist-Level Arrhythmia Detection and Classification in Ambulatory Electrocardiograms Using a Deep Neural Network},
+	journal = {Nature Medicine},
+	year    = {2019},
+	volume  = {25},
+	number  = {1},
+	pages   = {65--69},
+	doi     = {10.1038/s41591-018-0268-3}
+}
+
+@book{goodfellow2016deep,
+	author    = {Goodfellow, Ian and Bengio, Yoshua and Courville, Aaron},
+	title     = {Deep Learning},
+	publisher = {MIT Press},
+	year      = {2016}
+}

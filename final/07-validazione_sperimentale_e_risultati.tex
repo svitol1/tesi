@@ -1,13 +1,316 @@
 \chapter{Validazione sperimentale e risultati}
+\label{ch:validazione}
 
-% TODO: capitolo da scrivere.
-%
-% Contenuti previsti (da concordare con il relatore):
-%   - Protocollo di test bilanciato (composizione dell'insieme di test,
-%     numero di esempi per classe di scambio e per la classe "nessuno scambio").
-%   - Metriche di valutazione utilizzate (es. accuracy, precision, recall,
-%     F1-score per classe, matrice di confusione).
-%   - Prestazioni complessive del modello CNN+GCN proposto.
-%   - Prestazioni per singola classe di scambio (periferici e precordiali).
-%   - Confronto con le baseline di riferimento (es. metodi classici a regole
-%     descritti nel Capitolo 3 e/o modelli più semplici, come CNN senza ramo GCN).
+In questo capitolo vengono descritte la metodologia di valutazione adottata e l'insieme dei test sperimentali eseguiti per verificare le prestazioni dei modelli sviluppati. La discussione critica dei risultati, il confronto tra le configurazioni e le relative considerazioni sono rimandate al capitolo successivo (\ref{chap8}); qui ci si concentra sul \emph{cosa} è stato testato e sul \emph{come}, in modo da fornire il contesto necessario a interpretare correttamente i dati riportati in seguito.
+
+\section{Metodologia di valutazione}
+\label{sec:metodologia-valutazione}
+
+A differenza della fase di training, in cui ogni registrazione ECG contribuisce al dataset con un numero limitato di battiti (2 per registrazione, si veda il Capitolo~\ref{chap_5}), la fase di test è stata progettata per valutare la correttezza della predizione a livello di \textbf{intera registrazione}, e non del singolo battito. Questa scelta è motivata dal fatto che un singolo battito può essere classificato erroneamente a causa di rumore, morfologia atipica o errori di allineamento del picco R, senza che questo rifletta un reale errore nel posizionamento degli elettrodi.
+
+Lo script \texttt{test.py} implementa questa logica secondo i seguenti passi:
+
+\begin{enumerate}
+	\item \textbf{Caricamento lazy dei segmenti}: i segmenti (battiti già estratti durante la fase di preparazione del dataset) vengono caricati da disco batch per batch tramite un \texttt{Dataset} PyTorch (\texttt{ECGFileDataset}), evitando di tenere l'intero dataset di test in memoria RAM. Questa feature si è resa necessaria per evitare terminazioni del processo (Out-Of-Memory) su dataset di dimensioni maggiori.
+	\item \textbf{Normalizzazione e controllo di validità}: per ogni segmento viene verificata la forma attesa (12 derivazioni $\times$ lunghezza attesa) e l'assenza di valori \texttt{NaN}; viene poi applicata una normalizzazione \emph{z-score} per canale. I segmenti non validi (file mancanti, forma errata, valori non numerici) vengono scartati e non contribuiscono al voto finale della registrazione a cui appartengono.
+	\item \textbf{Inferenza batch per batch}: il modello, con i pesi caricati da un checkpoint (\texttt{.pt}), esegue l'inferenza su ciascun batch di segmenti validi.
+	\item \textbf{Aggregazione per majority voting a livello di registrazione}: le predizioni dei singoli segmenti appartenenti alla stessa registrazione (\texttt{ecg\_id}) vengono raggruppate; la classe predetta per l'intera registrazione è quella più votata tra i suoi segmenti. Viene inoltre calcolato il rapporto tra il numero di voti della classe vincente e il numero totale di segmenti validi della registrazione (\texttt{confidence\_ratio}), riportato a titolo informativo nel riepilogo dei risultati, con soglia di riferimento del 50\%.
+\end{enumerate}
+
+I risultati dell'esecuzione di \texttt{test.py} sono due:
+\begin{itemize}
+	\item nel terminale, vengono stampati il \emph{classification report} (precision, recall, f1-score per classe) e la matrice di confusione, calcolati a livello di registrazione;
+	\item viene salvato un file \texttt{test\_recordings\_summary.csv} con una riga per registrazione, contenente: identificativo, numero di segmenti validi utilizzati, etichetta reale, etichetta predetta, rapporto di confidenza ed esito (True/False).
+\end{itemize}
+
+\section{Pulizia del training set}
+\label{pulizia-dataset}
+
+Come accennato nel Capitolo~\ref{chap_5}, il training set costruito da \texttt{dataset\_builder.py} include solo 2 battiti per registrazione. Se da un lato questo limita il costo computazionale in fase di training, dall'altro rende difficile qualunque tentativo di stabilire se una registrazione presente nei database sorgente (PTB-XL, Georgia) sia effettivamente affetta da uno scambio di elettrodi reale, oppure sia stata etichettata in modo scorretto; un singolo battito anomalo non è una prova sufficiente.
+
+Per risolvere questo problema è stato sviluppato lo script \\ \texttt{find\_mislabeled\_recordings.py}, che applica alle registrazioni del training set la stessa procedura di valutazione a livello di intera registrazione descritta in Sezione~\ref{sec:metodologia-valutazione}, ma partendo dal segnale grezzo (non dai soli 2 battiti già estratti). Suddivisa in due fasi:
+
+\begin{enumerate}
+	\item \textbf{Predizione grezza ($P_{raw}$)}: a partire dal segnale grezzo della registrazione (così com'è nel database sorgente, quindi assumendo che sia corretta/normale), vengono estratti tutti i battiti validi (rilevamento dei picchi R e segmentazione) e si esegue l'inferenza su ciascuno di essi, aggregando con majority voting. Se $P_{raw} \neq \text{normal}$, la registrazione viene marcata come \emph{candidata}. Questo perchè il modello, pur osservando la registrazione nella forma in cui è presente nel database, ritiene comunque di riconoscere un malposizionamento di tipo $P_{raw}$.
+	\item \textbf{Test di conferma ($P_{confirm}$)}: per ogni registrazione candidata, viene applicata artificialmente la trasformazione corrispondente a $P_{raw}$ (cioè lo scambio di elettrodi previsto), a tutti i battiti della registrazione, e si ripete l'inferenza con majority voting, ottenendo $P_{confirm}$. Se $P_{confirm}$ torna a essere \texttt{normal}, si ha un forte indizio che la registrazione possedesse già in origine lo scambio $P_{raw}$. Applicare sinteticamente lo stesso scambio lo ha di fatto "annullato", riportando la geometria delle derivazioni ad uno stato normale. In questo caso la registrazione viene marcata come \emph{confermata}.
+\end{enumerate}
+
+L'output dello script è un file CSV (una riga per registrazione analizzata) con predizione grezza, esito della candidatura ed esito del test di conferma. Le registrazioni identificate come \emph{confermate}, partendo dalle previsioni dei modelli allenati per il riconoscimento di una \textbf{singola} classe di scambio, sono quelle rimosse dal training set per ottenere la variante \emph{reduced} del dataset, in opposizione alla variante \emph{original} (dataset di training non filtrato).
+
+\section{Configurazioni sperimentali}
+\label{sec:configurazioni}
+
+I test descritti in questo capitolo sono stati ripetuti sistematicamente combinando tre fattori, che andranno a definire la struttura delle directory:
+
+\begin{description}
+	\item[Modello utilizzato] \texttt{original}, indica che il modello è stato allenato con il dataset original, oppure \texttt{reduced} indica che il modello è stato allenato con il dataset ridotto, come spiegato nella sezione~\ref{pulizia-dataset};
+	\item[Numero di classi] organizza i modelli addestrati per distinguere 2, 3, 4 o 5 classi; in tutti i casi è presente la classe \texttt{normal} più le combinazioni di scambio derivazioni considerate, ad esempio LA\_LL, RA\_LA, RA\_LL, V1\_V2, V2\_V3, ecc.);
+	\item[Dataset di test] indica quale dataset è stato testato: \emph{split test} interno, creato dai dataset PTB-XL/Georgia (come spiegato nella sezione~\ref{final_dataset}, oppure il dataset esterno denominato "\texttt{China}" (sezione~\ref{china_dataset}), utilizzato esclusivamente in fase di test training per valutare la capacità di generalizzazione dei modelli su una popolazione e un protocollo di acquisizione differenti, e infine \texttt{china\_mod} indica il dataset dopo la rimozione delle registrazioni probabilmente errate (selezionate come per il dataset di training \ref{pulizia-dataset}).
+\end{description}
+
+La struttura delle cartelle dei test eseguiti, riportata in Figura~\ref{fig:struttura-test}, riflette esattamente queste tre scelte, creando un organizzazione semplice e intuitiva.
+
+\begin{figure}[htbp]
+	\centering
+	 \includegraphics[width=0.3\textwidth]{images/dir_struct.png}
+	\caption{Struttura delle directory dei test eseguiti.}
+	\label{fig:struttura-test}
+\end{figure}
+
+È importante sottolineare che gli script \texttt{test.py} e \texttt{find\_mislabeled\_recordings.py} utilizzati sono gli stessi in tutte le configurazioni: ciò che cambia sono i pesi del modello caricati (\texttt{--weights}), l'elenco delle classi (\texttt{--classes}, nell'ordine usato in training) e la cartella dati fornita in input (\texttt{--data\_dir}, o gli argomenti \texttt{--china\_root}/\texttt{--china\_csv} per il dataset esterno). Le differenze nei risultati riportati nel capitolo successivo sono quindi imputabili esclusivamente alle differenze tra le configurazioni sopra descritte, e non a differenze nella procedura di valutazione.
+
+\section{Risultati numerici}
+\label{sec:dove-risultati}
+
+Dato l'elevato numero di combinazioni testate (variante del dataset $\times$ numero di classi $\times$ dataset di test), non tutte le esecuzioni sono riportate per esteso in questa tesi; nel capitolo \emph{Discussione dei risultati} andranno selezionate e commentate le combinazioni più rilevanti.
+
+\subsection{split di test tra modelli}
+Per prima, viene mostrata la tabella contenente le precisioni raggiunte dai vari tipi di modelli allenati con il dataset di training originale; il test è stato eseguito sullo split di test generato a partitre da \emph{PTB-XL/Georgia}:
+
+\begin{table}[htbp]
+	\centering
+	\caption{Precisioni calcolate su modelli allenati con dataset di training originale}
+	\label{tab:model_confront}
+	\rowcolors{2}{gray!15}{white}
+	\begin{tabular}{lccc}
+		\toprule
+		Classe & Acc. CNN (\%) & Acc. MLP (\%) & Acc. GCN (\%) \\
+		\midrule
+		normal LA\_LL & 99.75 & 97.13 & 95.73 \\
+		normal RA\_LA & 99.85 & 99.60 & 99.41 \\
+		normal RA\_LL & 99.94 & 99.78 & 99.04 \\
+		normal V1\_V2 & 99.51 & 98.70 & 93.29 \\
+		normal V2\_V3 & 98.61 & 96.82 & 89.34 \\
+		normal V3\_V4 & 99.66 & n.d. & n.d. \\
+		normal V4\_V5 & 98.73 & n.d. & n.d. \\
+		normal V5\_V6 & 98.42 & n.d. & n.d. \\
+		normal LA\_LL--RA\_LL & 98.83 & n.d. & 93.91 \\
+		normal LA\_LL--V3\_V4 & 98.05 & 94.13 & n.d. \\
+		normal RA\_LA--LA\_LL & 97.81 & 96.45 & 95.27 \\
+		normal RA\_LA--RA\_LL & 99.72 & 94.71 & 99.10 \\
+		normal V1\_V2--V2\_V3 & 97.99 & n.d. & 89.41 \\
+		normal V2\_V3--RA\_LA & 97.87 & n.d. & n.d. \\
+		
+		\bottomrule
+	\end{tabular}
+\end{table}
+
+\subsection{split di test tra \emph{original} e \emph{reduced}}
+
+Qui vengono comparate vari modelli della \emph{cnn} allenati con il dataset di training originale e ridotto:
+
+\begin{table}[htbp]
+	\centering
+	\caption{Precisioni calcolate su modelli allenati con dataset di training originale e ridotto}
+	\label{tab:orig_vs_reduced}
+	\rowcolors{2}{gray!15}{white}
+	\begin{tabular}{lcc}
+		\toprule
+		Classe & Acc. original (\%) & Acc. reduced (\%) \\
+		\midrule
+		normal LA\_LL 	& 99.75 & 98.93 \\
+		normal RA\_LA 	& 99.85 & 99.84 \\
+		normal RA\_LL 	& 99.94 & 99.81 \\
+		normal V1\_V2 	& 99.51 & 99.65 \\
+		normal V2\_V3 	& 98.61 & 99.09 \\
+		normal V3\_V4 	& 99.66 & 99.56 \\
+		normal V4\_V5 	& 98.73 & 98.71 \\
+		normal V5\_V6 	& 98.42 & 99.05 \\
+		normal LA\_LL--RA\_LL 	& 98.83 & 96.94 \\
+		normal LA\_LL--V3\_V4 	& 98.05 & 97.13 \\
+		normal RA\_LA--LA\_LL 	& 97.81 & 97.32 \\
+		normal RA\_LA--RA\_LL 	& 99.72	& 99.68 \\
+		normal V1\_V2--V2\_V3 	& 97.99 & 97.79 \\
+		normal V2\_V3--RA\_LA 	& 97.87	& 98.68 \\
+		
+		\bottomrule
+	\end{tabular}
+\end{table}
+
+
+\subsection{database esterno}
+Qui vengono mostrati i test eseguiti sul database "\emph{china}" (Sezione~\ref{china_dataset}), sia con modelli addestrati con il dataset di training originale, sia con il dataset ridotto.
+
+La tabella riporta le precisioni ottenute sui modelli addestrati con il dataset originale e ridotto a confronto. L'ultima colonna indica il valore riportato nei file \texttt{tot.txt}, relativo ai casi predetti con inversione e riconfermati dal test presente in \texttt{find\_mislabeled\_recordings.py}.
+
+\begin{table}[htbp]
+	\centering
+	\caption{Precisioni dei modelli addestrati con il dataset originale e ridotto, testati su \emph{china}}
+	\label{tab:china_confronto}
+	\scriptsize
+	\rowcolors{3}{gray!15}{white}
+	\begin{tabular}{l c c c c c c}
+		\toprule
+		Classe & \multicolumn{3}{c}{Original} & \multicolumn{3}{c}{Reduced} \\
+		\cmidrule(lr){2-4} \cmidrule(lr){5-7}
+		& Acc. & Acc. R & Riconf. & Acc. & Acc. R & Riconf. \\
+		\midrule
+		normal LA\_LL & 99.57 & 94.68 & 178/188  & 98.70 & 55.99 & 318/568  \\
+		normal RA\_LA & 99.74 & 64.04 & 73/114   & 99.55 & 51.53 & 101/196  \\
+		normal RA\_LL & 99.84 & 56.52 & 39/69    & 99.79 & 68.82 & 64/93    \\
+		normal V1\_V2 & 99.40 & 59.39 & 155/261  & 99.21 & 67.83 & 234/345  \\
+		normal V2\_V3 & 96.98 & 29.95 & 396/1322 & 98.40 & 56.67 & 395/697  \\
+		normal V3\_V4 & 98.73 & 59.21 & 328/554  & 99.04 & 76.61 & 321/419  \\
+		normal V4\_V5 & 97.89 & 39.98 & 369/923  & 97.48 & 33.82 & 372/1100 \\
+		normal V5\_V6 & 96.86 & 75.25 & 371/493  & 98.10 & 76.72 & 636/829  \\
+		normal LA\_LL--RA\_LL & 98.35 & 68.52 & 494/721  & 95.68 & 20.76 & 392/1888 \\
+		normal LA\_LL--V3\_V4 & 96.82 & 42.03 & 585/1392 & 95.72 & 36.43 & 682/1872 \\
+		normal RA\_LA--LA\_LL & 96.15 & 29.69 & 500/1684 & 96.12 & 26.59 & 451/1696 \\
+		normal RA\_LA--RA\_LL & 99.66 & 78.38 & 116/148  & 99.76 & 80.37 & 86/107   \\
+		normal V1\_V2--V2\_V3 & 97.16 & 35.40 & 440/1243 & 96.25 & 27.80 & 456/1640 \\
+		normal V2\_V3--RA\_LA & 97.05 & 35.07 & 431/1229 & 97.87 & 45.48 & 423/930  \\
+		\bottomrule
+	\end{tabular}
+\end{table}
+
+\subsection{database esterno modificato}
+
+Il database \emph{china} modificato è stato ottenuto applicando all'1\% delle registrazioni l'inversione corrispondente alla classe indicata. Per ogni configurazione sono stati utilizzati tre \emph{seed} di randomizzazione (`42`, `17` e `30`). I modelli sono tutti addestrati con il dataset di training originale. Le tabelle riportano le statistiche mostrate nei file \texttt{test.png}; le colonne relative alla classe indicata nella configurazione sono abbreviate con "classe".
+
+Per valutare le prestazioni dei modelli sulla classe di scambio si fa uso delle seguenti metriche standard di classificazione, derivate dalla matrice di confusione.
+
+\paragraph{Matrice di confusione}
+La matrice di confusione confronta le predizioni del modello con i valori reali (\emph{ground truth}), distinguendo quattro casi per la classificazione binaria:
+
+\begin{itemize}
+	\item \textbf{TP} (\emph{True Positive}): il modello identifica correttamente un caso appartenente alla classe di scambio;
+	\item \textbf{FN} (\emph{False Negative}): il modello non riconosce un caso reale della classe, classificandolo erroneamente come non appartenente;
+	\item \textbf{FP} (\emph{False Positive}): il modello classifica come appartenente alla classe un caso che in realtà non lo è;
+	\item \textbf{TN} (\emph{True Negative}): il modello riconosce correttamente un caso come non appartenente alla classe.
+\end{itemize}
+
+Da questi quattro valori si derivano direttamente tutte le metriche riportate di seguito.
+
+\paragraph{Accuracy}
+Rappresenta la percentuale di predizioni corrette sul totale delle registrazioni:
+
+\begin{equation}
+	\frac{TP + TN}{TP + TN + FP + FN}
+\end{equation}
+
+Essendo la classe di scambio fortemente minoritaria rispetto al totale delle registrazioni, l'accuracy tende a essere molto alta anche in presenza di errori significativi sulla classe di interesse; per questo motivo è necessario affiancarla ad altre metriche.
+
+\paragraph{Precision}
+Indica, tra le registrazioni classificate come appartenenti alla classe di scambio, quante lo sono realmente:
+
+\begin{equation}
+	\frac{TP}{TP + FP}
+\end{equation}
+
+Una precisione bassa segnala un numero elevato di falsi positivi.
+
+\paragraph{Recall}
+Indica, tra le registrazioni realmente appartenenti alla classe di scambio, quante sono state correttamente individuate dal modello:
+
+\begin{equation}
+	\frac{TP}{TP + FN}
+\end{equation}
+
+Un recall alto indica che il modello individua la quasi totalità dei casi reali, anche a costo di un maggior numero di falsi positivi.
+
+\paragraph{F1-score}
+È la media armonica di precisione e recall, particolarmente utile quando le due metriche assumono valori in contrasto tra loro:
+
+\begin{equation}
+	2 \times \frac{Precision \times Recall}{Precision + Recall}
+\end{equation}
+
+\begin{table}[htbp]
+	\centering
+	\caption{Accuracy e metriche per classe sui test con \emph{china} modificato}
+	\label{tab:china_mod_classi}
+	\rowcolors{2}{gray!15}{white}
+	\scriptsize
+	\begin{tabular}{l c c c c c c c c}
+		\toprule
+		Configurazione & Seed & Accuracy (\%) & \multicolumn{3}{c}{Classe di scambio} \\
+		& & & Precisione & Recall & F1 \\
+		\midrule
+		LA\_LL & 42 & 99.91 & .9778 & .9362 & .9565 \\
+		LA\_LL & 17 & 99.91 & .9776 & .9267 & .9515 \\
+		LA\_LL & 30 & 99.92 & .9778 & .9385 & .9578 \\
+		RA\_LA & 42 & 99.93 & .9338 & 1.0000 & .9658 \\
+		RA\_LA & 17 & 99.93 & .9358 & 1.0000 & .9669 \\
+		RA\_LA & 30 & 99.93 & .9338 & 1.0000 & .9658 \\
+		RA\_LL & 42 & 99.96 & .9570 & 1.0000 & .9780 \\
+		RA\_LL & 17 & 99.96 & .9570 & 1.0000 & .9780 \\
+		RA\_LL & 30 & 99.96 & .9570 & 1.0000 & .9780 \\
+		V1\_V2 & 42 & 99.88 & .8974 & .9929 & .9428 \\
+		V1\_V2 & 17 & 99.88 & .8974 & .9929 & .9428 \\
+		V1\_V2 & 30 & 99.88 & .8962 & 1.0000 & .9453 \\
+		V2\_V3 & 42 & 97.98 & .3310 & .9953 & .4968 \\
+		V2\_V3 & 17 & 97.98 & .3305 & .9953 & .4962 \\
+		V2\_V3 & 30 & 97.98 & .3307 & .9929 & .4962 \\
+		V3\_V4 & 42 & 99.49 & .6667 & .9882 & .7962 \\
+		V3\_V4 & 17 & 99.50 & .6672 & .9905 & .7973 \\
+		V3\_V4 & 30 & 99.49 & .6661 & .9905 & .7966 \\
+		V4\_V5 & 42 & 98.87 & .4695 & 1.0000 & .6390 \\
+		V4\_V5 & 17 & 98.87 & .4694 & .9976 & .6384 \\
+		V4\_V5 & 30 & 98.87 & .4695 & 1.0000 & .6390 \\
+		V5\_V6 & 42 & 98.39 & .3818 & .9929 & .5515 \\
+		V5\_V6 & 17 & 98.39 & .3827 & .9953 & .5529 \\
+		V5\_V6 & 30 & 98.39 & .3825 & .9929 & .5523 \\
+		\bottomrule
+	\end{tabular}
+\end{table}
+
+\begin{table}[htbp]
+	\centering
+	\caption{Matrici di confusione sui test con \emph{china} modificato}
+	\label{tab:china_mod_confusione}
+	\rowcolors{2}{gray!15}{white}
+	
+	\begin{tabular}{l c c c c c}
+		\toprule
+		Configurazione & Seed & TP & FN & FP & TN \\
+		\midrule
+
+		LA\_LL & 42 & 396 & 27 & 9 & 41874 \\
+		LA\_LL & 17 & 392 & 31 & 9 & 41874 \\
+		LA\_LL & 30 & 397 & 26 & 9 & 41874 \\
+		RA\_LA & 42 & 423 & 0 & 30 & 41853 \\
+		RA\_LA & 17 & 423 & 0 & 29 & 41854 \\
+		RA\_LA & 30 & 423 & 0 & 30 & 41853 \\
+		RA\_LL & 42 & 423 & 0 & 19 & 41864 \\
+		RA\_LL & 17 & 423 & 0 & 19 & 41864 \\
+		RA\_LL & 30 & 423 & 0 & 19 & 41864 \\
+		V1\_V2 & 42 & 420 & 3 & 48 & 41835 \\
+		V1\_V2 & 17 & 420 & 3 & 48 & 41835 \\
+		V1\_V2 & 30 & 423 & 0 & 49 & 41834 \\
+		V2\_V3 & 42 & 421 & 2 & 851 & 41032 \\
+		V2\_V3 & 17 & 421 & 2 & 853 & 41030 \\
+		V2\_V3 & 30 & 420 & 3 & 850 & 41033 \\
+		V3\_V4 & 42 & 418 & 5 & 209 & 41674 \\
+		V3\_V4 & 17 & 419 & 4 & 209 & 41674 \\
+		V3\_V4 & 30 & 419 & 4 & 210 & 41673 \\
+		V4\_V5 & 42 & 423 & 0 & 478 & 41405 \\
+		V4\_V5 & 17 & 422 & 1 & 477 & 41406 \\
+		V4\_V5 & 30 & 423 & 0 & 478 & 41405 \\
+		V5\_V6 & 42 & 420 & 3 & 680 & 41203 \\
+		V5\_V6 & 17 & 421 & 2 & 679 & 41204 \\
+		V5\_V6 & 30 & 420 & 3 & 678 & 41205 \\
+		\bottomrule
+	\end{tabular}
+\end{table}
+
+\subsection{modifica della soglia}
+Per alcune classi che presentano una \emph{precision} molto bassa, è stato riprodotto il test con una soglia di confidenza più grande. In questo caso è stata scelta una soglia del 90\% (il modello deve predire almeno il 90\% dei segmenti con una stessa classe, altrimenti la registrazione viene scartata).
+
+\begin{table}[htbp]
+	\centering
+	\caption{Matrici di confusione sui test con \emph{china} modificato}
+	\label{tab:china_mod_treshold}
+	\rowcolors{2}{gray!15}{white}
+	
+	\begin{tabular}{lcccc}
+		\toprule
+		Configuraziones & TP & FN & FP & TN \\
+		\midrule
+		
+		V2\_V3 & 410 & 1 & 483 & 39953 \\
+		V3\_V4 & 410 & 1 & 82  & 40996 \\
+		V4\_V5 & 421 & 0 & 261 & 40468 \\
+		V5\_V6 & 409 & 3 & 211 & 38509 \\
+		\bottomrule
+	\end{tabular}
+\end{table}
