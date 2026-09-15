@@ -22,4 +22,69 @@ Le configurazioni che coinvolgono le classi V2-V6 mostrano invece una forte dimi
 
 L'introduzione della soglia di confidenza al 90\% (Tabella \ref{tab:china_mod_treshold}) conferma questa ipotesi, infatti, per tutte le configurazioni critiche si osserva un netto calo dei falsi positivi, con un miglioramento della precisione (V3\_V4 passa da $\sim$.666 a $\sim$.833, V4\_V5 da $\sim$.469 a $\sim$.617, V5\_V6 da $\sim$.38 a $\sim$.66), a fronte di una perdita minima o nulla di recall (al più 3 falsi negativi aggiuntivi, come in V5\_V6). Fa eccezione V2\_V3, che pur beneficiando della soglia (precisione da $\sim$.33 a $\sim$.459) resta la configurazione più problematica, con un numero di falsi positivi ancora elevato (483); ciò conferma che la sovrapposizione tra le classi V2 e V3 rappresenta il limite più significativo del modello, non completamente risolvibile con la sola modifica della soglia di confidenza.
 
+\paragraph{Confronto con lo stato dell'arte}
+All'interno della Tabella~\ref{tab:sota_confronto} vengono riportate le prestazioni raggiunte dal modello proposto (configurazione \emph{china modificato} con soglia 90\% dove mostrato) a fianco dei valori riportati in letteratura dai metodi classici di analisi del segnale e da modelli di deep learning. È importante premettere che si tratta di un confronto \emph{indicativo} e non di un benchmark diretto: i lavori citati utilizzano database, protocolli di simulazione dello scambio e definizioni di "successo" (per singolo battito, per finestra temporale o per intera registrazione) differenti tra loro e rispetto a quanto utilizzato in questa tesi; inoltre alcune metriche in letteratura sono aggregate su più tipologie di scambio contemporaneamente.
+
+\begin{table}[htbp]
+	\centering
+	\caption{Confronto tra il modello proposto alcuni riferimenti di letteratura}
+	\label{tab:sota_confronto}
+	\rowcolors{2}{gray!15}{white}
+	\scriptsize
+	\begin{tabular}{p{3.3cm} p{2.6cm} p{2.6cm} p{2cm}}
+		\toprule
+		Riferimento & Tipo di metodo & Classe/i & Metrica principale \\
+		\midrule
+		Hedén et al. \cite{heden1995ann} & ANN (storica) & RA--LA & Sp$\approx$99.9\%, Se$\approx$98.7\% \\
+		Kors \& van Herpen \cite{kors2001accurate} & Correlazione derivazioni & RA--LA/RA--LL & Se$\ge$93\%, Sp$\ge$99.5\% \\
+		Kors \& van Herpen \cite{kors2001accurate} & Correlazione derivazioni & LA--LL & Se=17.9\% \\
+		Jekova et al. \cite{jekova2016interlead} & Correlazione inter-lead & Precordiali (1--3 hop) & Se=99.52\%, Sp=99.62\% \\
+		Jekova et al. \cite{jekova2016interlead} & Correlazione inter-lead & Periferiche & Se=92.10\%, Sp=96.05\% \\
+		Rjoob et al. \cite{rjoob2021jmir} & Deep learning (BLSTM) & V1/V2 & Acc.=93.0\% \\
+		Huang et al. \cite{huang2024lightweight} & Deep learning (lightweight) & arti+precordiali (12 casi) & Macro F1 93.42--99.61\% \\
+		Alves et al. \cite{alves2025telecardiology} & Deep learning (CNN+RNN) & RA--LA, RA--LL & metriche $\geq$0.96 \\
+		Alves et al. \cite{alves2025telecardiology} & Deep learning (CNN+RNN) & Precordiali & metriche $>$0.86 \\
+		\midrule
+		\textbf{Questo lavoro} & CNN & RA\_LL & F1=0.978 \\
+		\textbf{Questo lavoro} & CNN & RA\_LA & F1=0.966 \\
+		\textbf{Questo lavoro} & CNN & LA\_LL & F1=0.957 \\
+		\textbf{Questo lavoro} & CNN & V1\_V2 & F1=0.943 \\
+		\textbf{Questo lavoro} (soglia 90\%) & CNN & V3\_V4 & Precisione=0.833 \\
+		\textbf{Questo lavoro} (soglia 90\%) & CNN & V2\_V3 & Precisione=0.459 \\
+		\bottomrule
+	\end{tabular}
+\end{table}
+
+\begin{table}[htbp]
+	\centering
+	\caption{Confronto tra il modello proposto (Se/Sp, seed 42) e alcuni riferimenti di letteratura}
+	\label{tab:sota_confronto_sp_se}
+	\rowcolors{2}{gray!15}{white}
+	\scriptsize
+	\begin{tabular}{p{3.2cm} p{2.4cm} p{2.2cm} p{1.4cm} p{1.4cm}}
+		\toprule
+		Riferimento & Tipo di metodo & Classe/i & Se & Sp \\
+		\midrule
+		Hedén et al. \cite{heden1995ann} & ANN (storica) & RA--LA & $\approx$98.7\% & $\approx$99.9\% \\
+		Kors \& van Herpen \cite{kors2001accurate} & Correlazione derivazioni & RA--LA/RA--LL & $\geq$93\% (stimato) & $\geq$99.5\% \\
+		Kors \& van Herpen \cite{kors2001accurate} & Correlazione derivazioni & LA--LL & 17.9\% & n.d. \\
+		Jekova et al. \cite{jekova2016interlead} & Correlazione inter-lead & Precordiali (1--3 hop) & 99.52\% & 99.62\% \\
+		Jekova et al. \cite{jekova2016interlead} & Correlazione inter-lead & Periferiche & 92.10\% & 96.05\% \\
+		\midrule
+		\textbf{Questo lavoro} & CNN & LA\_LL & 93.62\% & 99.98\% \\
+		\textbf{Questo lavoro} & CNN & RA\_LA & 100.00\% & 99.93\% \\
+		\textbf{Questo lavoro} & CNN & RA\_LL & 100.00\% & 99.95\% \\
+		\textbf{Questo lavoro} & CNN & V1\_V2 & 99.29\% & 99.89\% \\
+		\textbf{Questo lavoro} & CNN & V2\_V3 & 99.53\% & 97.97\% \\
+		\textbf{Questo lavoro} & CNN & V3\_V4 & 98.82\% & 99.50\% \\
+		\textbf{Questo lavoro} & CNN & V4\_V5 & 100.00\% & 98.86\% \\
+		\textbf{Questo lavoro} & CNN & V5\_V6 & 99.29\% & 98.38\% \\
+		\bottomrule
+	\end{tabular}
+\end{table}
+
+\newpage
+Sulle classi periferiche (RA\_LA, RA\_LL, LA\_LL), il modello proposto si colloca in linea con i risultati più recenti basati su deep learning (Alves et al.~\cite{alves2025telecardiology}) e supera nettamente il limite storico dei metodi classici sulla classe LA\_LL, dove Kors e van Herpen~\cite{kors2001accurate} riportavano una sensibilità di appena il 17.9\%: la rete convoluzionale qui proposta raggiunge invece un F1 di 0.957, con precisione e recall entrambi superiori al 92\%. Questo suggerisce che l'approccio basato su rappresentazioni apprese dal segnale grezzo, rispetto a regole di correlazione fissate a priori, sia particolarmente efficace proprio sui casi in cui i metodi classici mostravano più difficoltà.
+
+Sulle classi precordiali adiacenti (in particolare V2\_V3), il confronto è invece meno favorevole: Jekova et al.~\cite{jekova2016interlead} riportano sensibilità e specificità superiori al 99\% per gli scambi precordiali, molto migliore rispetto alla precisione ottenuta dal modello proposto su questa classe (anche dopo la modifica della soglia di confidenza). Va tuttavia notato che il metodo di Jekova et al. sfrutta esplicitamente la struttura di correlazione nota tra derivazioni precordiali adiacenti, un'informazione strutturale che nel presente lavoro non viene fornita esplicitamente al modello ma dev'essere appresa implicitamente dai dati; questo potrebbe spiegare, almeno in parte, la netta differenza tra i risultati e suggerisce una possibili idea di miglioramento futuro (ad esempio incorporando vincoli o feature basate sulla correlazione inter-derivazione).
 
